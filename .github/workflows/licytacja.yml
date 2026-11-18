@@ -31,5 +31,5 @@ jobs:
           PANEL_URL: ${{ vars.PANEL_URL }}
           ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'bz@ibprojekt.eu' }}
           GODZINY_KOMUNIKATU: "12"
-          GODZINY_PRZYPOMNIENIA: "6"
+          GODZINY_PRZYPOMNIENIA: "2"
           DZIEKUJ_PO_KONCU: "nie"
