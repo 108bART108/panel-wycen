@@ -6,7 +6,6 @@ Dla każdego otwartego zapytania:
   2. KOMUNIKAT     — na GODZINY_KOMUNIKATU (2 h) przed końcem (albo gdy klikniesz „Wyślij teraz” w panelu)
                      drukarnie, które złożyły ofertę, dostają najniższą cenę do pobicia — BEZ nazwy drukarni.
                      Od tej chwili najniższa cena jest też widoczna w panelu drukarń i aktualizowana co 30 min.
-  1b. NOWA OFERTA  — gdy drukarnia złoży lub zmieni ofertę, dostajesz maila (raz na każdą zmianę, zbiorczo co 30 min).
   2b. PRZYPOMNIENIE — na 6 h przed końcem drukarnie, które NIE złożyły jeszcze oferty, dostają przypomnienie.
   3. ZAMKNIĘCIE    — po końcu: status „zakonczone”, ranking ofert i mail do Ciebie: najniższa oferta + link
                      „ustal marżę i wygeneruj PDF dla klienta”.
@@ -216,25 +215,6 @@ def mail_komunikat(z, zid, moja, najn, godz_do_konca):
             f"<p style=\"font-size:14px;color:#555\">Nie podajemy nazw innych drukarń ani szczegółów ich ofert.</p>")
 
 
-def mail_nowe_oferty(z, zid, zmienione, najn):
-    """zmienione: [(email, oferta, czy_nowa)]"""
-    bloki = ""
-    for em, o, nowa in zmienione:
-        poz = "".join(
-            f"<li>{e(p.get('naklad'))} egz. — <strong>{zl(razem(p))}</strong> netto z transportem, {e(p.get('termin'))} dni rob."
-            + (f", grzbiet {e(p.get('grzbiet'))} mm" if p.get("grzbiet") else "")
-            + (" <span style=\"color:#1d6b35\">(obecnie najniższa)</span>" if najn.get(str(int(p.get('naklad', 0)))) is not None
-               and razem(p) <= najn[str(int(p.get('naklad', 0)))] + 0.001 else "") + "</li>"
-            for p in o.get("pozycje", []) if float(p.get("cena") or 0) > 0)
-        bloki += (f"<p style=\"margin:14px 0 4px\"><strong>{e(o.get('drukarnia') or em)}</strong> — {'nowa oferta' if nowa else 'zmiana oferty'}"
-                  + (f" · plik: {e(o['plik'].get('nazwa'))}" if o.get("plik") else "") + f"</p><ul style=\"margin-top:0\">{poz}</ul>"
-                  + (f"<p style=\"font-size:14px;color:#555;margin-top:-6px\">Uwagi: {e(o.get('uwagi'))}</p>" if o.get("uwagi") else ""))
-    nazwy = ", ".join(o.get("drukarnia") or em for em, o, _ in zmienione)
-    return (f"{'Nowa oferta' if len(zmienione) == 1 else 'Nowe oferty'}: {z['tytul']} — {nazwy}",
-            f"<p>Zapytanie <strong>{e(z['tytul'])}</strong> (koniec {fmt(z['koniec'])}):</p>{bloki}"
-            f"<p style=\"margin-top:16px\"><a href=\"{PANEL_URL}#/z/{zid}\" style=\"background:#111;color:#fff;padding:10px 18px;text-decoration:none\">Zobacz wszystkie oferty</a></p>")
-
-
 def mail_przypomnienie(z, zid, drukarnia, godz_do_konca):
     czas = f"około {int(round(godz_do_konca))} h" if godz_do_konca >= 1.5 else "niecałą godzinę"
     return (f"Przypomnienie: {z['tytul']} — do końca zostało {czas}",
@@ -293,22 +273,6 @@ def przetworz(baza, poczta, teraz=None, sucho=False):
 
         if len(oferty) != z.get("liczbaOfert"):
             zmiany["liczbaOfert"] = len(oferty)
-
-        # 1b. powiadomienie dla Ciebie o nowych / zmienionych ofertach
-        znane = dict(z.get("ofertyZgloszone") or {})
-        zmienione = []
-        for em, o in oferty:
-            zm = o.get("zmieniono")
-            if not zm:
-                continue
-            klucz = zm.isoformat() if hasattr(zm, "isoformat") else str(zm)
-            if znane.get(em) != klucz:
-                zmienione.append((em, o, em not in znane))
-                znane[em] = klucz
-        if zmienione:
-            temat, tresc = mail_nowe_oferty(z, zid, zmienione, najnizsze(z, oferty))
-            if poczta.wyslij(ADMIN_EMAIL, temat, tresc):
-                zmiany["ofertyZgloszone"] = znane
 
         # 2. komunikat „cena do pobicia”
         najn = najnizsze(z, oferty)
