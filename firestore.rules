@@ -1,0 +1,51 @@
+rules_version = '2';
+// Reguły bezpieczeństwa Panelu wycen IB Projekt Printing.
+// Wklej całość w: Firebase Console → Firestore Database → Reguły → Opublikuj.
+// Adres(y) administratora muszą być takie same jak KONFIG.admini w index.html.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function zalogowany() { return request.auth != null && request.auth.token.email_verified == true; }
+    function mojEmail() { return request.auth.token.email.lower(); }
+    function admin() { return zalogowany() && mojEmail() in ['bz@ibprojekt.eu', 'bartosz.zaj@gmail.com']; }
+    function drukarnia() {
+      return zalogowany()
+        && exists(/databases/$(database)/documents/drukarnie/$(mojEmail()))
+        && get(/databases/$(database)/documents/drukarnie/$(mojEmail())).data.aktywna != false;
+    }
+    function zapytanie(id) { return get(/databases/$(database)/documents/zapytania/$(id)).data; }
+
+    // Lista drukarń — zarządza tylko administrator; drukarnia widzi tylko swój wpis.
+    match /drukarnie/{em} {
+      allow read: if admin() || (zalogowany() && em == mojEmail());
+      allow write: if admin();
+    }
+
+    // Zapytania — drukarnia widzi tylko te, do których została zaproszona.
+    // (Dane klienta są w osobnej kolekcji „prywatne”, niedostępnej dla drukarń.)
+    match /zapytania/{id} {
+      allow read: if admin() || (drukarnia() && mojEmail() in resource.data.zaproszeni);
+      allow write: if admin();
+
+      // Oferty — każda drukarnia ma jeden dokument (id = jej e-mail), widzi tylko swój.
+      // Zapis tylko gdy: zaproszona, licytacja otwarta i nie minął jej koniec.
+      match /oferty/{em} {
+        allow read: if admin() || (drukarnia() && em == mojEmail());
+        allow create, update: if drukarnia()
+          && em == mojEmail()
+          && mojEmail() in zapytanie(id).zaproszeni
+          && zapytanie(id).status == 'otwarte'
+          && request.time < zapytanie(id).koniec
+          && request.resource.data.email == mojEmail()
+          && request.resource.data.keys().hasOnly(['drukarnia', 'email', 'pozycje', 'uwagi', 'wykrojnik', 'zlozono', 'zmieniono'])
+          && request.resource.data.pozycje is list
+          && request.resource.data.pozycje.size() <= 20;
+        allow delete: if admin();
+      }
+    }
+
+    // Dane klientów i wygenerowane oferty — tylko administrator.
+    match /prywatne/{id} { allow read, write: if admin(); }
+    match /liczniki/{id} { allow read, write: if admin(); }
+  }
+}

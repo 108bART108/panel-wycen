@@ -1,0 +1,8 @@
+Grafiki do oferty PDF (opcjonalne — bez nich oferta też wygląda dobrze):
+
+  logo.png   — okrągły znak IB Projekt Printing (PNG z przezroczystym tłem, ok. 600×600 px).
+               Bez tego pliku w nagłówku rysuje się pieczęć z monogramem „IB”.
+  prasa.png  — rycina prasy drukarskiej ze strony www (PNG, najlepiej czarna na przezroczystym tle).
+               Pojawi się jako delikatny znak wodny na dole każdej strony oferty.
+
+Wgraj pliki do folderu grafika/ w repozytorium panel-wycen (dokładnie te nazwy, małymi literami).

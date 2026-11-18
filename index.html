@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Panel wycen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@600&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#111;--paper:#fbfaf7;--line:#cfcac0;--muted:#5d5d5d;--ok:#1d6b35;--warn:#8a5d00;--err:#a3201b;--red:#991a15}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.5 'EB Garamond',Georgia,serif}
+a{color:var(--ink)}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 18px 80px}
+header{border-bottom:4px double var(--ink);display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;padding:14px 18px;max-width:1100px;margin:0 auto}
+.brand{font-family:'Cormorant SC',Georgia,serif;font-size:22px;letter-spacing:.12em}
+.brand small{display:block;font-family:'EB Garamond',serif;font-size:14px;letter-spacing:0;font-style:italic;color:var(--muted)}
+nav{display:flex;flex-wrap:wrap;gap:6px}
+nav a,button,.btn{font-family:'Cormorant SC',Georgia,serif;font-size:16px;letter-spacing:.06em;border:1px solid var(--ink);background:#fff;color:var(--ink);padding:8px 14px;min-height:40px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+nav a.on,button.primary,.btn.primary{background:var(--ink);color:#fff}
+button:hover,.btn:hover,nav a:hover{background:var(--red);border-color:var(--red);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed;background:#fff;color:var(--ink);border-color:var(--ink)}
+button.small{padding:4px 10px;min-height:32px;font-size:14px}
+h1{font-family:'Cormorant SC',Georgia,serif;font-weight:600;font-size:30px;margin:18px 0 6px;letter-spacing:.04em}
+h2{font-family:'Cormorant SC',Georgia,serif;font-weight:600;font-size:21px;margin:26px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px;letter-spacing:.05em}
+label{display:flex;flex-direction:column;gap:3px;font-size:15px;color:var(--muted)}
+input,select,textarea{font:17px 'EB Garamond',Georgia,serif;padding:8px 10px;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:0;width:100%}
+textarea{min-height:120px;resize:vertical}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 18px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.box{border:1px solid var(--ink);background:#fff;padding:14px 16px;margin:12px 0}
+.box.dbl{border:4px double var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:16px;background:#fff}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:'Cormorant SC',Georgia,serif;font-weight:600;color:var(--muted);letter-spacing:.04em}
+td.num,th.num{text-align:right;white-space:nowrap}
+tr.best td{background:#f1f6f1}
+.tag{display:inline-block;border:1px solid currentColor;padding:0 7px;font-size:13px;letter-spacing:.03em;border-radius:2px;white-space:nowrap}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.muted{color:var(--muted)}.small{font-size:14px}
+.timer{font-variant-numeric:tabular-nums;font-weight:600}
+.card{border:1px solid var(--ink);background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:4px;text-decoration:none}
+.card:hover{outline:2px solid var(--red)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.pre{white-space:pre-wrap}
+.msg{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;z-index:9;max-width:90vw}
+.hidden{display:none!important}
+.center{max-width:420px;margin:40px auto}
+.scroll{overflow-x:auto}
+.check{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
+.check input{width:18px;height:18px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">IB Projekt Printing<small>Panel wycen</small></div>
+  <nav id="nav"></nav>
+</header>
+<main class="wrap" id="app"><p class="muted">Ładowanie…</p></main>
+<div id="msg" class="msg hidden"></div>
+
+<script type="module">
+// =====================================================================================
+//  KONFIGURACJA — uzupełnij danymi z Firebase (Ustawienia projektu → Twoje aplikacje)
+// =====================================================================================
+const KONFIG = {
+  firebase: {
+    apiKey: "AIzaSyDF6gwFOxOL4MR3YE9VH04pY0w35yBEp-c",
+    authDomain: "panel-wycen-ibprojekt.firebaseapp.com",
+    projectId: "panel-wycen-ibprojekt",
+    storageBucket: "panel-wycen-ibprojekt.firebasestorage.app",
+    messagingSenderId: "547895456416",
+    appId: "1:547895456416:web:b05f10b323ebd3f53e0fc5"
+  },
+  admini: ["bz@ibprojekt.eu", "bartosz.zaj@gmail.com"],   // te same adresy wpisz w firestore.rules (gmail — na czas testów)
+  firma: {
+    nazwa: "IB Projekt Printing",
+    wlasciciel: "IB Projekt Izabela Nowak",
+    adres: "ul. Czeremchowa 2/1, 66-016 Płoty",
+    nip: "5372449762", regon: "081081662",
+    osoba: "Bartosz Zając", telefon: "792 331 442", email: "bz@ibprojekt.eu", www: "www.ibprojekt.eu"
+  },
+  marzaDomyslna: 20,          // %
+  vatDomyslny: 23,            // %
+  waznoscDni: 14,
+  zapasDni: 2,                // dni robocze doliczane do terminu drukarni w ofercie dla klienta
+  zaokraglenie: 10,           // zaokrąglenie ceny netto w górę do pełnych X zł
+  godzinyKomunikatu: 12,      // ile godzin przed końcem drukarnie dostają najniższą cenę
+  warunki: [
+    "Ceny zawierają transport na jeden adres na terenie Polski, o ile nie zaznaczono inaczej.",
+    "Termin realizacji liczony jest w dniach roboczych od akceptacji plików i proofa.",
+    "Dopuszczalna tolerancja nakładu w przemyśle poligraficznym: ±3%.",
+    "Pliki do druku zgodnie z naszą instrukcją przygotowania plików (CMYK, spady 3 mm)."
+  ],
+  szablonSpecyfikacji: "Produkt: \nFormat: \nŚrodek: … str., kolorystyka …, papier …\nOkładka: kolorystyka …, karton …, uszlachetnienie …\nOprawa: \nPakowanie / dostawa: \nTermin oczekiwany: "
+};
+// =====================================================================================
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendEmailVerification, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot,
+  query, where, orderBy, Timestamp, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app = initializeApp(KONFIG.firebase);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $app = document.getElementById("app");
+const $nav = document.getElementById("nav");
+
+let ja = null;           // { email, rola: 'admin'|'drukarnia', nazwa }
+let odsubskrybuj = [];   // aktywne nasłuchy onSnapshot
+
+// ------------------------------------------------------------------ narzędzia
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const zl = (v) => (Math.round((+v || 0) * 100) / 100).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
+const liczba = (v) => { const x = parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", ".")); return isFinite(x) ? x : NaN; };
+const data = (t) => t ? (t.toDate ? t.toDate() : new Date(t)) : null;
+const fmtData = (t) => { const d = data(t); return d ? d.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"; };
+const fmtDzien = (d) => d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+const emailKey = (e) => String(e || "").trim().toLowerCase();
+function info(t, ms = 3500) { const m = document.getElementById("msg"); m.textContent = t; m.classList.remove("hidden"); clearTimeout(info.t); info.t = setTimeout(() => m.classList.add("hidden"), ms); }
+function zatrzymajNasluchy() { odsubskrybuj.forEach((f) => { try { f(); } catch (e) {} }); odsubskrybuj = []; }
+function pozostalo(koniec) {
+  const d = data(koniec); if (!d) return "";
+  let s = Math.floor((d - Date.now()) / 1000);
+  if (s <= 0) return "zakończona";
+  const dni = Math.floor(s / 86400); s %= 86400;
+  const h = Math.floor(s / 3600); s %= 3600;
+  const m = Math.floor(s / 60); const sek = s % 60;
+  return (dni ? dni + " d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(sek).padStart(2, "0");
+}
+setInterval(() => document.querySelectorAll("[data-koniec]").forEach((el) => {
+  const t = +el.dataset.koniec; const txt = pozostalo(new Date(t)); el.textContent = txt;
+  el.classList.toggle("err", Date.now() > t); el.classList.toggle("warn", t - Date.now() < KONFIG.godzinyKomunikatu * 3600e3 && Date.now() < t);
+}), 1000);
+const timerHtml = (koniec) => { const d = data(koniec); return d ? `<span class="timer" data-koniec="${d.getTime()}">${esc(pozostalo(d))}</span>` : ""; };
+const razem = (p) => (liczba(p.cena) || 0) + (liczba(p.transport) || 0);
+const STATUS = { otwarte: ["trwa", "ok"], zakonczone: ["zakończona", "muted"], anulowane: ["anulowana", "err"] };
+const statusHtml = (z) => { const s = (z.status === "otwarte" && data(z.koniec) < new Date()) ? ["czeka na zamknięcie", "warn"] : (STATUS[z.status] || [z.status, ""]); return `<span class="tag ${s[1]}">${esc(s[0])}</span>`; };
+
+// ------------------------------------------------------------------ logowanie
+function ekranLogowania(blad = "") {
+  $nav.innerHTML = "";
+  $app.innerHTML = `<div class="center box dbl">
+    <h1 style="margin-top:0">Logowanie</h1>
+    <p class="small muted">Panel dla drukarń współpracujących z IB Projekt Printing. Konto dostaje się na zaproszenie.</p>
+    ${blad ? `<p class="err">${esc(blad)}</p>` : ""}
+    <form id="f" class="grid" style="grid-template-columns:1fr">
+      <label>E-mail<input name="email" type="email" autocomplete="username" required></label>
+      <label>Hasło<input name="haslo" type="password" autocomplete="current-password" required minlength="8"></label>
+      <div class="row"><button class="primary" type="submit">Zaloguj</button>
+      <button type="button" id="rej">Pierwsze logowanie — utwórz hasło</button></div>
+      <a href="#" id="reset" class="small">Nie pamiętam hasła</a>
+    </form></div>`;
+  const f = document.getElementById("f");
+  f.onsubmit = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, f.email.value.trim(), f.haslo.value); } catch (err) { ekranLogowania("Nieprawidłowy e-mail lub hasło."); } };
+  document.getElementById("rej").onclick = async () => {
+    if (!f.email.value || f.haslo.value.length < 8) return info("Podaj e-mail i hasło (min. 8 znaków).");
+    try { const u = await createUserWithEmailAndPassword(auth, f.email.value.trim(), f.haslo.value); await sendEmailVerification(u.user); info("Konto utworzone — sprawdź skrzynkę i kliknij link potwierdzający.", 6000); }
+    catch (err) { ekranLogowania(err.code === "auth/email-already-in-use" ? "Konto z tym adresem już istnieje — zaloguj się." : "Nie udało się utworzyć konta: " + err.code); }
+  };
+  document.getElementById("reset").onclick = async (e) => { e.preventDefault(); if (!f.email.value) return info("Wpisz najpierw e-mail."); await sendPasswordResetEmail(auth, f.email.value.trim()).catch(() => {}); info("Jeśli konto istnieje, wysłaliśmy link do zmiany hasła."); };
+}
+
+onAuthStateChanged(auth, async (u) => {
+  zatrzymajNasluchy();
+  if (!u) { ja = null; return ekranLogowania(); }
+  if (!u.emailVerified) {
+    $nav.innerHTML = `<button id="wyl">Wyloguj</button>`; document.getElementById("wyl").onclick = () => signOut(auth);
+    $app.innerHTML = `<div class="center box dbl"><h1 style="margin-top:0">Potwierdź e-mail</h1>
+      <p>Wysłaliśmy link na <strong>${esc(u.email)}</strong>. Kliknij go, a potem odśwież tę stronę.</p>
+      <div class="row"><button class="primary" onclick="location.reload()">Odśwież</button><button id="ponow">Wyślij link ponownie</button></div></div>`;
+    document.getElementById("ponow").onclick = () => sendEmailVerification(u).then(() => info("Wysłano ponownie.")).catch(() => info("Spróbuj za chwilę."));
+    return;
+  }
+  const email = emailKey(u.email);
+  if (KONFIG.admini.map(emailKey).includes(email)) { ja = { email, rola: "admin", nazwa: KONFIG.firma.osoba }; }
+  else {
+    try {
+      const d = await getDoc(doc(db, "drukarnie", email));
+      if (d.exists() && d.data().aktywna !== false) ja = { email, rola: "drukarnia", nazwa: d.data().nazwa };
+    } catch (e) {}
+    if (!ja) {
+      $nav.innerHTML = `<button id="wyl">Wyloguj</button>`; document.getElementById("wyl").onclick = () => signOut(auth);
+      $app.innerHTML = `<div class="center box"><h1 style="margin-top:0">Brak dostępu</h1><p>Adres <strong>${esc(email)}</strong> nie jest na liście drukarń. Skontaktuj się: ${esc(KONFIG.firma.email)}, tel. ${esc(KONFIG.firma.telefon)}.</p></div>`;
+      return;
+    }
+  }
+  rysujNav(); router();
+});
+
+function rysujNav() {
+  const h = location.hash || "#/";
+  const linki = ja.rola === "admin"
+    ? [["#/", "Zapytania"], ["#/nowe", "Nowe zapytanie"], ["#/drukarnie", "Drukarnie"]]
+    : [["#/", "Moje zapytania"]];
+  $nav.innerHTML = linki.map(([href, t]) => `<a href="${href}" class="${h === href ? "on" : ""}">${t}</a>`).join("") +
+    `<button id="wyl" title="${esc(ja.email)}">Wyloguj</button>`;
+  document.getElementById("wyl").onclick = () => signOut(auth);
+}
+window.addEventListener("hashchange", () => { if (ja) { rysujNav(); router(); } });
+
+function router() {
+  zatrzymajNasluchy();
+  const [, a, b] = (location.hash || "#/").split("/");
+  if (ja.rola === "admin") {
+    if (a === "nowe") return widokNowe();
+    if (a === "edytuj" && b) return widokNowe(b);
+    if (a === "z" && b) return widokZapytanieAdmin(b);
+    if (a === "oferta" && b) return widokOfertaKlienta(b);
+    if (a === "drukarnie") return widokDrukarnie();
+    return widokListaAdmin();
+  }
+  if (a === "z" && b) return widokZapytanieDrukarnia(b);
+  return widokListaDrukarnia();
+}
+
+// =====================================================================================
+//  ADMIN — lista zapytań
+// =====================================================================================
+function widokListaAdmin() {
+  $app.innerHTML = `<h1>Zapytania</h1><div id="lista"><p class="muted">Ładowanie…</p></div>`;
+  const q = query(collection(db, "zapytania"), orderBy("utworzono", "desc"));
+  odsubskrybuj.push(onSnapshot(q, async (snap) => {
+    if (snap.empty) { document.getElementById("lista").innerHTML = `<p>Brak zapytań. <a href="#/nowe">Utwórz pierwsze</a>.</p>`; return; }
+    const karty = snap.docs.map((d) => { const z = d.data();
+      return `<a class="card" href="#/z/${d.id}"><div class="row" style="justify-content:space-between"><strong>${esc(z.tytul)}</strong>${statusHtml(z)}</div>
+        <span class="small muted">Nakłady: ${esc((z.naklady || []).join(" / "))} · zaproszone: ${(z.zaproszeni || []).length} · ofert: ${z.liczbaOfert ?? "—"}</span>
+        <span class="small">Koniec: ${fmtData(z.koniec)} ${z.status === "otwarte" ? "· zostało " + timerHtml(z.koniec) : ""}</span>
+        ${z.najnizsze ? `<span class="small">Najniższe: ${Object.entries(z.najnizsze).map(([n, v]) => `${esc(n)} egz. — ${zl(v)}`).join("; ")}</span>` : ""}</a>`; });
+    document.getElementById("lista").innerHTML = `<div class="cards">${karty.join("")}</div>`;
+  }, (e) => { document.getElementById("lista").innerHTML = `<p class="err">Błąd odczytu: ${esc(e.code)}. Sprawdź reguły Firestore.</p>`; }));
+}
+
+// =====================================================================================
+//  ADMIN — nowe / edycja zapytania
+// =====================================================================================
+async function widokNowe(id = null) {
+  const drukarnie = (await getDocs(collection(db, "drukarnie"))).docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => d.aktywna !== false);
+  let z = { tytul: "", specyfikacja: KONFIG.szablonSpecyfikacji, naklady: [], plikiLink: "", zaproszeni: [] }, pryw = {};
+  if (id) {
+    const s = await getDoc(doc(db, "zapytania", id)); if (!s.exists()) return info("Nie ma takiego zapytania.");
+    z = s.data(); const p = await getDoc(doc(db, "prywatne", id)); pryw = p.exists() ? p.data() : {};
+  }
+  const koniecDomyslny = id && data(z.koniec) ? data(z.koniec) : new Date(Date.now() + 48 * 3600e3);
+  const lokal = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const tagi = [...new Set(drukarnie.flatMap((d) => d.tagi || []))].sort();
+  $app.innerHTML = `<h1>${id ? "Edycja zapytania" : "Nowe zapytanie do drukarń"}</h1>
+  <form id="f">
+    <div class="box">
+      <div class="grid">
+        <label>Tytuł roboczy (widzą go drukarnie — bez nazwy klienta!)<input name="tytul" required value="${esc(z.tytul)}" placeholder="np. Książka 170×240, 256 str., oprawa miękka"></label>
+        <label>Nakłady (oddziel przecinkiem)<input name="naklady" required value="${esc((z.naklady || []).join(", "))}" placeholder="500, 1000, 2000"></label>
+        <label>Link do plików / makiety (opcjonalnie)<input name="plikiLink" value="${esc(z.plikiLink || "")}" placeholder="https://…"></label>
+        <label>Koniec licytacji<input name="koniec" type="datetime-local" required value="${lokal(koniecDomyslny)}"></label>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="small muted">Szybko:</span>
+        ${[24, 48, 72, 120].map((h) => `<button type="button" class="small" data-h="${h}">+${h} h</button>`).join("")}</div>
+      <label style="margin-top:10px">Specyfikacja dla drukarń<textarea name="specyfikacja" required style="min-height:170px">${esc(z.specyfikacja)}</textarea></label>
+    </div>
+    <h2>Drukarnie do zaproszenia</h2>
+    <div class="row">${tagi.map((t) => `<button type="button" class="small" data-tag="${esc(t)}">+ ${esc(t)}</button>`).join("")}
+      <button type="button" class="small" id="wsz">zaznacz wszystkie</button><button type="button" class="small" id="nic">odznacz</button></div>
+    <div class="grid" style="margin-top:8px">${drukarnie.length ? drukarnie.map((d) => `<label class="check"><input type="checkbox" name="dr" value="${esc(d.id)}" data-tagi="${esc((d.tagi || []).join("|"))}" ${(z.zaproszeni || []).includes(d.id) ? "checked" : ""}>
+        <span><strong>${esc(d.nazwa)}</strong><br><span class="small muted">${esc((d.tagi || []).join(", "))}</span></span></label>`).join("") : `<p>Najpierw <a href="#/drukarnie">dodaj drukarnie</a>.</p>`}</div>
+    <h2>Klient <span class="small muted">(widzisz tylko Ty — do oferty PDF)</span></h2>
+    <div class="box grid">
+      <label>Firma / klient<input name="klient" value="${esc(pryw.klient || "")}"></label>
+      <label>Osoba kontaktowa<input name="osoba" value="${esc(pryw.osoba || "")}" placeholder="np. Pani Anna Kowalska"></label>
+      <label>E-mail klienta<input name="emailKlienta" type="email" value="${esc(pryw.email || "")}"></label>
+      <label>Notatka<input name="notatka" value="${esc(pryw.notatka || "")}"></label>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="primary" type="submit">${id ? "Zapisz zmiany" : "Utwórz i wyślij zaproszenia"}</button>
+      <span class="small muted">Zaproszenia mailowe wysyła bot (najpóźniej w ciągu 30 min). Drukarnie od razu widzą zapytanie w panelu.</span></div>
+  </form>`;
+  const f = document.getElementById("f");
+  f.querySelectorAll("[data-h]").forEach((b) => b.onclick = () => { f.koniec.value = lokal(new Date(Date.now() + +b.dataset.h * 3600e3)); });
+  f.querySelectorAll("[data-tag]").forEach((b) => b.onclick = () => f.querySelectorAll("input[name=dr]").forEach((c) => { if (c.dataset.tagi.split("|").includes(b.dataset.tag)) c.checked = true; }));
+  document.getElementById("wsz")?.addEventListener("click", () => f.querySelectorAll("input[name=dr]").forEach((c) => c.checked = true));
+  document.getElementById("nic")?.addEventListener("click", () => f.querySelectorAll("input[name=dr]").forEach((c) => c.checked = false));
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const naklady = f.naklady.value.split(/[,;\s]+/).map((x) => parseInt(x, 10)).filter((x) => x > 0);
+    const zaproszeni = [...f.querySelectorAll("input[name=dr]:checked")].map((c) => c.value);
+    const koniec = new Date(f.koniec.value);
+    if (!naklady.length) return info("Podaj co najmniej jeden nakład.");
+    if (!zaproszeni.length) return info("Zaznacz co najmniej jedną drukarnię.");
+    if (koniec < new Date()) return info("Koniec licytacji musi być w przyszłości.");
+    const dane = { tytul: f.tytul.value.trim(), naklady, plikiLink: f.plikiLink.value.trim(), specyfikacja: f.specyfikacja.value.trim(),
+      koniec: Timestamp.fromDate(koniec), zaproszeni, status: "otwarte" };
+    const prywatne = { klient: f.klient.value.trim(), osoba: f.osoba.value.trim(), email: f.emailKlienta.value.trim(), notatka: f.notatka.value.trim() };
+    try {
+      let zid = id;
+      if (id) {
+        const stare = data(z.koniec);
+        if (stare && Math.abs(stare - koniec) > 60000) { dane.komunikatWyslany = false; dane.przypomnienieWyslane = false; }   // przedłużenie = nowy komunikat 12 h przed nowym końcem
+        await updateDoc(doc(db, "zapytania", id), dane);
+      } else {
+        const r = await addDoc(collection(db, "zapytania"), { ...dane, utworzono: serverTimestamp(), powiadomieni: [], komunikatWyslany: false, liczbaOfert: 0 });
+        zid = r.id;
+      }
+      await setDoc(doc(db, "prywatne", zid), prywatne, { merge: true });
+      info("Zapisano."); location.hash = "#/z/" + zid;
+    } catch (err) { info("Błąd zapisu: " + err.code); }
+  };
+}
+
+// =====================================================================================
+//  ADMIN — szczegóły zapytania z ofertami na żywo
+// =====================================================================================
+function tabelaOfert(z, oferty, zaznacz = true) {
+  return (z.naklady || []).map((n) => {
+    const wiersze = oferty.map((o) => ({ o, p: (o.pozycje || []).find((p) => +p.naklad === +n) })).filter((x) => x.p && liczba(x.p.cena) > 0)
+      .sort((a, b) => razem(a.p) - razem(b.p));
+    if (!wiersze.length) return `<h2>Nakład ${esc(n)} egz.</h2><p class="muted">Brak ofert.</p>`;
+    const min = razem(wiersze[0].p), minT = Math.min(...wiersze.map((x) => +x.p.termin || 999));
+    return `<h2>Nakład ${esc(n)} egz.</h2><div class="scroll"><table><tr><th>#</th><th>Drukarnia</th><th class="num">Druk</th><th class="num">Transport</th><th class="num">Razem</th><th class="num">Za egz.</th><th class="num">Termin</th><th class="num">Grzbiet</th><th>Uwagi</th></tr>
+      ${wiersze.map(({ o, p }, i) => `<tr class="${zaznacz && i === 0 ? "best" : ""}"><td>${i + 1}</td><td><strong>${esc(o.drukarnia || o.id)}</strong>${razem(p) === min ? ' <span class="tag ok">najniższa</span>' : ""}${(+p.termin === minT) ? ' <span class="tag">najszybsza</span>' : ""}<br><span class="small muted">zmieniono ${fmtData(o.zmieniono)}</span></td>
+        <td class="num">${zl(p.cena)}</td><td class="num">${zl(p.transport)}</td><td class="num"><strong>${zl(razem(p))}</strong></td><td class="num">${zl(razem(p) / n)}</td>
+        <td class="num">${esc(p.termin || "—")} dni</td><td class="num">${p.grzbiet ? esc(p.grzbiet) + " mm" : "—"}</td>
+        <td class="small">${esc(o.uwagi || "")}${o.wykrojnik ? `<br><a href="${esc(o.wykrojnik)}" target="_blank" rel="noopener">wykrojnik / makieta</a>` : ""}</td></tr>`).join("")}</table></div>`;
+  }).join("");
+}
+
+function najnizszeZ(z, oferty) {
+  const wynik = {};
+  (z.naklady || []).forEach((n) => {
+    const ceny = oferty.map((o) => (o.pozycje || []).find((p) => +p.naklad === +n)).filter((p) => p && liczba(p.cena) > 0).map(razem);
+    if (ceny.length) wynik[String(n)] = Math.min(...ceny);
+  });
+  return wynik;
+}
+
+function widokZapytanieAdmin(id) {
+  $app.innerHTML = `<p class="muted">Ładowanie…</p>`;
+  let z = null, oferty = [], pryw = {}, drukarnie = {};
+  getDoc(doc(db, "prywatne", id)).then((p) => { pryw = p.exists() ? p.data() : {}; rysuj(); });
+  getDocs(collection(db, "drukarnie")).then((s) => { s.docs.forEach((d) => drukarnie[d.id] = d.data()); rysuj(); });
+  odsubskrybuj.push(onSnapshot(doc(db, "zapytania", id), (s) => { z = s.exists() ? { id, ...s.data() } : null; rysuj(); }));
+  odsubskrybuj.push(onSnapshot(collection(db, "zapytania", id, "oferty"), (s) => { oferty = s.docs.map((d) => ({ id: d.id, ...d.data() })); rysuj(); }));
+  function rysuj() {
+    if (!z) return;
+    const zlozyli = new Set(oferty.map((o) => o.id));
+    const koniecMinal = data(z.koniec) < new Date();
+    $app.innerHTML = `
+      <div class="row" style="justify-content:space-between"><h1>${esc(z.tytul)}</h1>${statusHtml(z)}</div>
+      <div class="box dbl"><div class="grid">
+        <div><span class="muted small">Koniec licytacji</span><br><strong>${fmtData(z.koniec)}</strong></div>
+        <div><span class="muted small">Pozostało</span><br>${z.status === "otwarte" ? timerHtml(z.koniec) : "—"}</div>
+        <div><span class="muted small">Oferty</span><br><strong>${zlozyli.size} / ${(z.zaproszeni || []).length}</strong><br><span class="small muted">przypomnienie dla spóźnionych: ${z.przypomnienieWyslane ? "wysłane" : "6 h przed końcem"}</span></div>
+        <div><span class="muted small">Komunikat „cena do pobicia”</span><br>${z.komunikatWyslany ? '<span class="ok">wysłany</span>' : (z.wyslijKomunikatTeraz ? '<span class="warn">czeka na bota</span>' : `za ${KONFIG.godzinyKomunikatu} h przed końcem`)}</div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <a class="btn primary" href="#/oferta/${id}">Oferta dla klienta (marża + PDF)</a>
+        ${z.status === "otwarte" ? `<button id="komunikat">Wyślij teraz najniższą cenę drukarniom</button>
+          <button id="plus24">Przedłuż +24 h</button><button id="zakoncz">Zakończ teraz</button>` : `<button id="wznow">Wznów (+24 h)</button>`}
+        <a class="btn" href="#/edytuj/${id}">Edytuj</a>
+        ${z.status === "otwarte" ? `<button id="anuluj">Anuluj</button>` : ""}
+      </div></div>
+      ${z.status === "otwarte" && koniecMinal ? `<p class="warn">Czas minął — bot zamknie licytację i wyśle Ci podsumowanie przy najbliższym uruchomieniu (do 30 min).</p>` : ""}
+      ${tabelaOfert(z, oferty)}
+      <h2>Zaproszone drukarnie</h2>
+      <table><tr><th>Drukarnia</th><th>E-mail z zaproszeniem</th><th>Oferta</th></tr>
+      ${(z.zaproszeni || []).map((e) => `<tr><td>${esc(drukarnie[e]?.nazwa || e)}<br><span class="small muted">${esc(e)}</span></td>
+        <td>${(z.powiadomieni || []).includes(e) ? '<span class="ok">wysłany</span>' : '<span class="muted">czeka na bota</span>'}</td>
+        <td>${zlozyli.has(e) ? '<span class="ok">złożona</span>' : '<span class="muted">brak</span>'}</td></tr>`).join("")}</table>
+      <h2>Specyfikacja</h2><div class="box pre">${esc(z.specyfikacja)}</div>
+      ${z.plikiLink ? `<p>Pliki: <a href="${esc(z.plikiLink)}" target="_blank" rel="noopener">${esc(z.plikiLink)}</a></p>` : ""}
+      <h2>Klient</h2><div class="box">${pryw.klient ? `<strong>${esc(pryw.klient)}</strong> ${esc(pryw.osoba || "")} ${pryw.email ? "· " + esc(pryw.email) : ""}<br><span class="small muted">${esc(pryw.notatka || "")}</span>` : '<span class="muted">nie podano — uzupełnisz przy ofercie</span>'}
+        ${(pryw.oferty || []).length ? `<p class="small">Wygenerowane oferty: ${pryw.oferty.map((o) => `${esc(o.numer)} (${fmtData(o.data)})`).join(", ")}</p>` : ""}</div>`;
+    const ref = doc(db, "zapytania", id);
+    const zmien = (d, t) => updateDoc(ref, d).then(() => info(t)).catch((e) => info("Błąd: " + e.code));
+    document.getElementById("komunikat")?.addEventListener("click", () => {
+      const n = najnizszeZ(z, oferty);
+      if (!Object.keys(n).length) return info("Nie ma jeszcze żadnych ofert.");
+      if (confirm("Drukarnie, które złożyły oferty, dostaną mailem najniższą cenę (bez nazwy drukarni). Wysłać?")) zmien({ najnizsze: n, wyslijKomunikatTeraz: true }, "Komunikat wyśle bot w ciągu 30 min. Najniższa cena już jest widoczna w panelu drukarń.");
+    });
+    document.getElementById("plus24")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(data(z.koniec).getTime() + 24 * 3600e3)), komunikatWyslany: false, przypomnienieWyslane: false }, "Przedłużono o 24 h."));
+    document.getElementById("wznow")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(Math.max(Date.now(), data(z.koniec).getTime()) + 24 * 3600e3)), status: "otwarte", komunikatWyslany: false, przypomnienieWyslane: false, podsumowanieWyslane: false }, "Wznowiono na 24 h."));
+    document.getElementById("zakoncz")?.addEventListener("click", () => { if (confirm("Zakończyć licytację teraz? Drukarnie nie będą mogły już zmieniać ofert.")) zmien({ koniec: Timestamp.fromDate(new Date()) }, "Zakończono — podsumowanie wyśle bot."); });
+    document.getElementById("anuluj")?.addEventListener("click", () => { if (confirm("Anulować zapytanie?")) zmien({ status: "anulowane" }, "Anulowano."); });
+  }
+}
+
+// =====================================================================================
+//  ADMIN — oferta dla klienta: wybór oferty, marża, PDF
+// =====================================================================================
+async function widokOfertaKlienta(id) {
+  const zs = await getDoc(doc(db, "zapytania", id)); if (!zs.exists()) return info("Brak zapytania.");
+  const z = { id, ...zs.data() };
+  const oferty = (await getDocs(collection(db, "zapytania", id, "oferty"))).docs.map((d) => ({ id: d.id, ...d.data() }));
+  const ps = await getDoc(doc(db, "prywatne", id)); const pryw = ps.exists() ? ps.data() : {};
+  const opcje = {};
+  (z.naklady || []).forEach((n) => {
+    opcje[n] = oferty.map((o) => ({ o, p: (o.pozycje || []).find((p) => +p.naklad === +n) })).filter((x) => x.p && liczba(x.p.cena) > 0).sort((a, b) => razem(a.p) - razem(b.p));
+  });
+  const brak = Object.values(opcje).every((l) => !l.length);
+  $app.innerHTML = `<h1>Oferta dla klienta</h1><p class="muted">${esc(z.tytul)} · ${statusHtml(z)} ${z.status === "otwarte" && data(z.koniec) > new Date() ? `· licytacja trwa jeszcze ${timerHtml(z.koniec)}` : ""}</p>
+  ${brak ? `<p class="err">Brak ofert od drukarń — nie ma z czego przygotować oferty.</p>` : ""}
+  <form id="f">
+    <h2>1. Oferta drukarni dla każdego nakładu <span class="small muted">(domyślnie najniższa)</span></h2>
+    <div class="box grid">${(z.naklady || []).map((n) => `<label>Nakład ${esc(n)} egz.
+      <select name="wyb_${n}"><option value="">— pomiń w ofercie —</option>${opcje[n].map(({ o, p }, i) => `<option value="${esc(o.id)}" ${i === 0 ? "selected" : ""}>${esc(o.drukarnia || o.id)} — ${zl(razem(p))}, ${esc(p.termin)} dni</option>`).join("")}</select></label>`).join("")}</div>
+    <h2>2. Ile doliczyć marży?</h2>
+    <div class="box grid">
+      <label>Rodzaj marży<select name="rodzaj"><option value="proc">procent od kosztu</option><option value="zl">stała kwota na nakład (zł)</option></select></label>
+      <label>Marża<input name="marza" inputmode="decimal" value="${KONFIG.marzaDomyslna}" autofocus></label>
+      <label>VAT<select name="vat">${[23, 8, 5].map((v) => `<option value="${v}" ${v === KONFIG.vatDomyslny ? "selected" : ""}>${v}%${v === 5 ? " (książki z ISBN)" : ""}</option>`).join("")}</select></label>
+      <label>Zapas do terminu drukarni (dni rob.)<input name="zapas" inputmode="numeric" value="${KONFIG.zapasDni}"></label>
+      <label>Ważność oferty (dni)<input name="waznosc" inputmode="numeric" value="${KONFIG.waznoscDni}"></label>
+      <label>Zaokrąglenie netto w górę do (zł)<input name="zaokr" inputmode="numeric" value="${KONFIG.zaokraglenie}"></label>
+    </div>
+    <div id="podglad"></div>
+    <h2>3. Klient</h2>
+    <div class="box grid">
+      <label>Firma / klient<input name="klient" value="${esc(pryw.klient || "")}" required></label>
+      <label>Osoba kontaktowa<input name="osoba" value="${esc(pryw.osoba || "")}"></label>
+      <label>E-mail<input name="email" type="email" value="${esc(pryw.email || "")}"></label>
+      <label>Czego dotyczy oferta<input name="dotyczy" value="${esc(pryw.dotyczy || z.tytul)}"></label>
+    </div>
+    <label>Specyfikacja w ofercie<textarea name="spec" style="min-height:160px">${esc(z.specyfikacja)}</textarea></label>
+    <label style="margin-top:10px">Warunki (jedna linia = jeden punkt)<textarea name="warunki">${esc(KONFIG.warunki.join("\n"))}</textarea></label>
+    <div class="row" style="margin-top:14px"><button class="primary" type="submit" ${brak ? "disabled" : ""}>Generuj ofertę PDF</button>
+      <span class="small muted">Numer oferty nada się automatycznie (OF/rok/miesiąc/nr).</span></div>
+  </form>`;
+  const f = document.getElementById("f");
+  const policz = () => {
+    const vat = +f.vat.value, m = liczba(f.marza.value) || 0, zaokr = liczba(f.zaokr.value) || 0, zapas = parseInt(f.zapas.value || 0, 10) || 0;
+    return (z.naklady || []).map((n) => {
+      const wyb = opcje[n].find((x) => x.o.id === f["wyb_" + n].value); if (!wyb) return null;
+      const koszt = razem(wyb.p);
+      let netto = f.rodzaj.value === "zl" ? koszt + m : koszt * (1 + m / 100);
+      if (zaokr > 0) netto = Math.ceil(netto / zaokr) * zaokr;
+      return { naklad: n, drukarnia: wyb.o.drukarnia || wyb.o.id, koszt, netto, vatKw: netto * vat / 100, brutto: netto * (1 + vat / 100), vat,
+        termin: (parseInt(wyb.p.termin, 10) || 0) + zapas, zysk: netto - koszt, grzbiet: wyb.p.grzbiet };
+    }).filter(Boolean);
+  };
+  const podglad = () => {
+    const poz = policz();
+    document.getElementById("podglad").innerHTML = poz.length ? `<div class="scroll"><table><tr><th>Nakład</th><th>Drukarnia</th><th class="num">Koszt</th><th class="num">Netto dla klienta</th><th class="num">Brutto</th><th class="num">Netto / egz.</th><th class="num">Termin</th><th class="num">Twoja marża</th></tr>
+      ${poz.map((p) => `<tr><td>${p.naklad} egz.</td><td class="small">${esc(p.drukarnia)}</td><td class="num">${zl(p.koszt)}</td><td class="num"><strong>${zl(p.netto)}</strong></td><td class="num">${zl(p.brutto)}</td><td class="num">${zl(p.netto / p.naklad)}</td><td class="num">${p.termin} dni rob.</td><td class="num ok">${zl(p.zysk)} (${(p.zysk / p.netto * 100).toFixed(1)}%)</td></tr>`).join("")}
+      </table></div><p class="small muted">Kolumny „Drukarnia”, „Koszt” i „Twoja marża” nie trafiają do PDF.</p>` : "";
+  };
+  f.addEventListener("input", podglad); f.addEventListener("change", podglad); podglad();
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const poz = policz(); if (!poz.length) return info("Wybierz co najmniej jeden nakład.");
+    let numer;
+    try {
+      numer = await runTransaction(db, async (t) => {
+        const d = new Date(), klucz = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const ref = doc(db, "liczniki", "oferty"); const s = await t.get(ref);
+        const nr = ((s.exists() && s.data()[klucz]) || 0) + 1;
+        t.set(ref, { [klucz]: nr }, { merge: true });
+        return `OF/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(nr).padStart(3, "0")}`;
+      });
+    } catch (err) { return info("Nie udało się nadać numeru: " + err.code); }
+    const dzis = new Date(), wazna = new Date(Date.now() + (parseInt(f.waznosc.value, 10) || 14) * 86400e3);
+    const dane = { numer, dzis, wazna, klient: f.klient.value.trim(), osoba: f.osoba.value.trim(), dotyczy: f.dotyczy.value.trim(),
+      spec: f.spec.value.trim(), warunki: f.warunki.value.split("\n").map((s) => s.trim()).filter(Boolean), pozycje: poz, firma: KONFIG.firma };
+    let zasoby;
+    try { zasoby = await zaladujPdfMake(); } catch (err) { return info("Nie udało się wczytać krojów pisma (folder fonty/): " + err.message, 6000); }
+    const nazwaPliku = `Oferta_${numer.replace(/\//g, "-")}_${dane.klient.replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40)}.pdf`;
+    window.pdfMake.createPdf(dokumentOferty(dane, zasoby)).download(nazwaPliku);
+    const rekord = { numer, data: Timestamp.fromDate(dzis), pozycje: poz.map(({ naklad, netto, brutto, vat, termin, koszt, drukarnia }) => ({ naklad, netto, brutto, vat, termin, koszt, drukarnia })) };
+    const stare = pryw.oferty || [];
+    await setDoc(doc(db, "prywatne", id), { klient: dane.klient, osoba: dane.osoba, email: f.email.value.trim(), dotyczy: dane.dotyczy, oferty: [...stare, rekord] }, { merge: true });
+    info(`Oferta ${numer} pobrana jako PDF.`, 5000);
+    if (f.email.value.trim()) {
+      const temat = encodeURIComponent(`Oferta ${numer} — ${dane.dotyczy}`);
+      const tresc = encodeURIComponent(`Dzień dobry${dane.osoba ? ", " + dane.osoba : ""},\n\nw załączniku przesyłam ofertę ${numer} dotyczącą: ${dane.dotyczy}.\nOferta jest ważna do ${fmtDzien(wazna)}. Chętnie odpowiem na pytania i dopasuję ofertę.\n\nPozdrawiam\n${KONFIG.firma.osoba}\n${KONFIG.firma.nazwa}\ntel. ${KONFIG.firma.telefon}`);
+      if (confirm("Otworzyć gotowego maila do klienta? (PDF dołączysz z folderu Pobrane)")) location.href = `mailto:${f.email.value.trim()}?subject=${temat}&body=${tresc}`;
+    }
+  };
+}
+
+const KROJE = {
+  Garamond: { normal: "EBGaramond-Regular.ttf", bold: "EBGaramond-SemiBold.ttf", italics: "EBGaramond-Italic.ttf", bolditalics: "EBGaramond-SemiBoldItalic.ttf" },
+  Cormorant: { normal: "CormorantGaramond-SemiBold.ttf", bold: "CormorantGaramond-SemiBold.ttf", italics: "CormorantGaramond-SemiBoldItalic.ttf", bolditalics: "CormorantGaramond-SemiBoldItalic.ttf" },
+  CormorantSC: { normal: "CormorantSC-SemiBold.ttf", bold: "CormorantSC-SemiBold.ttf", italics: "CormorantSC-SemiBold.ttf", bolditalics: "CormorantSC-SemiBold.ttf" }
+};
+let zasobyPdf = null;
+const naBase64 = (buf) => { let s = ""; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+async function obrazLubNull(url) {
+  try { const r = await fetch(url, { cache: "force-cache" }); if (!r.ok) return null; const typ = r.headers.get("content-type") || "image/png";
+    if (!/image\/(png|jpe?g)/.test(typ)) return null; return `data:${typ};base64,${naBase64(await r.arrayBuffer())}`; } catch (e) { return null; }
+}
+async function zaladujPdfMake() {
+  const skrypt = (src) => new Promise((ok, blad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = blad; document.head.appendChild(s); });
+  if (!window.pdfMake) await skrypt("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js");
+  if (zasobyPdf) return zasobyPdf;
+  info("Przygotowuję kroje pisma do PDF…");
+  const pliki = [...new Set(Object.values(KROJE).flatMap((k) => Object.values(k)))];
+  const vfs = {};
+  await Promise.all(pliki.map(async (p) => { const r = await fetch("fonty/" + p, { cache: "force-cache" }); if (!r.ok) throw new Error("brak kroju " + p); vfs[p] = naBase64(await r.arrayBuffer()); }));
+  window.pdfMake.vfs = vfs;
+  window.pdfMake.fonts = KROJE;
+  zasobyPdf = { logo: await obrazLubNull("grafika/logo.png"), prasa: await obrazLubNull("grafika/prasa.png") };
+  return zasobyPdf;
+}
+
+// --- PDF-OFERTA-START (funkcja bez zależności — testowana osobno)
+// Styl jak na www.ibprojekt.eu: EB Garamond + Cormorant, podwójne linie, romby, rozdziały z rzymskimi numerami.
+// Wymaga zarejestrowanych krojów: Garamond, Cormorant, CormorantSC. zasoby = { logo: dataURL|null, prasa: dataURL|null }
+function dokumentOferty(d, zasoby = {}) {
+  const INK = "#111111", SZARY = "#555555", JASNY = "#8a8a8a", W = 515;
+  const kw = (v) => (Math.round(v * 100) / 100).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
+  const dzien = (x) => x.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const rzym = (n) => [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]]
+    .reduce((acc, [v, s]) => { while (n >= v) { acc += s; n -= v; } return acc; }, "");
+  const f = d.firma;
+  const podwojna = (gora = 6, dol = 6) => ({ canvas: [{ type: "line", x1: 0, y1: 0, x2: W, y2: 0, lineWidth: 1.6, lineColor: INK }, { type: "line", x1: 0, y1: 3.4, x2: W, y2: 3.4, lineWidth: 0.6, lineColor: INK }], margin: [0, gora, 0, dol] });
+  const romb = (szer = 150, k = W) => ({ canvas: [
+      { type: "line", x1: (k - szer) / 2, y1: 4, x2: k / 2 - 9, y2: 4, lineWidth: 0.6 },
+      { type: "polyline", closePath: true, color: INK, lineWidth: 0, points: [{ x: k / 2, y: 0 }, { x: k / 2 + 4.5, y: 4 }, { x: k / 2, y: 8 }, { x: k / 2 - 4.5, y: 4 }] },
+      { type: "line", x1: k / 2 + 9, y1: 4, x2: (k + szer) / 2, y2: 4, lineWidth: 0.6 }], margin: [0, 4, 0, 4] });
+  const kropki = { canvas: [{ type: "line", x1: 0, y1: 0, x2: W, y2: 0, lineWidth: 0.6, dash: { length: 0.6, space: 2.2 }, lineColor: INK }], margin: [0, 3, 0, 3] };
+  const rozdzial = (nr, tytul) => ({ headlineLevel: 1, margin: [0, 10, 0, 2], stack: [
+    { columns: [{ width: 34, text: nr + ".", font: "Cormorant", fontSize: 17, bold: true }, { width: "*", text: tytul, font: "CormorantSC", fontSize: 13, characterSpacing: 1.6, margin: [0, 3, 0, 0] }] },
+    { canvas: [{ type: "line", x1: 0, y1: 0, x2: W, y2: 0, lineWidth: 0.8 }], margin: [0, 3, 0, 0] }] });
+  // ramka „jak na stronie” — linia + wewnętrzna linia z odstępem (outline-offset)
+  const ramka = (zawartosc, wew = 10) => ({ table: { widths: ["*"], body: [[{ table: { widths: ["*"], body: [[{ stack: [zawartosc], margin: [wew, wew - 2, wew, wew - 2] }]] },
+      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => INK, vLineColor: () => INK, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 } }]] },
+    layout: { hLineWidth: () => 1.2, vLineWidth: () => 1.2, hLineColor: () => INK, vLineColor: () => INK, paddingLeft: () => 3, paddingRight: () => 3, paddingTop: () => 3, paddingBottom: () => 3 } });
+
+  // znak: logo z pliku albo okrągła pieczęć z monogramem IB
+  const znak = zasoby.logo
+    ? { width: 50, image: zasoby.logo, fit: [50, 50] }
+    : { width: 50, stack: [
+        { canvas: [{ type: "ellipse", x: 25, y: 25, r1: 24, r2: 24, lineWidth: 1.3, lineColor: INK }, { type: "ellipse", x: 25, y: 25, r1: 20, r2: 20, lineWidth: 0.5, lineColor: INK }] },
+        { text: "IB", font: "Cormorant", bold: true, fontSize: 20, alignment: "center", relativePosition: { x: 0, y: -38 } }] };
+
+  // specyfikacja: „Etykieta: wartość” → wiersze z kropkowaną linią jak lista na stronie
+  const specWiersze = (d.spec || "").split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    const i = l.indexOf(":");
+    return i > 0 && i < 28 ? [{ text: l.slice(0, i), font: "CormorantSC", fontSize: 11, characterSpacing: 0.6, color: SZARY, margin: [0, 1, 0, 0] }, { text: l.slice(i + 1).trim() }]
+      : [{ text: "", }, { text: l }];
+  });
+  const stawki = [...new Set(d.pozycje.map((p) => p.vat))];
+  const jednaStawka = stawki.length === 1;
+  const naglowki = ["Nakład", "Netto", jednaStawka ? `VAT ${stawki[0]}%` : "VAT", "Brutto", "Za egz.", "Termin"].map((t, i) => ({ text: t, font: "CormorantSC", fontSize: 10.5, characterSpacing: 0.8, color: SZARY, alignment: i ? "right" : "left" }));
+  const wiersze = d.pozycje.map((p) => [
+    { text: `${p.naklad.toLocaleString("pl-PL")} egz.`, font: "Cormorant", bold: true, fontSize: 13 },
+    { text: kw(p.netto), alignment: "right" },
+    { text: jednaStawka ? kw(p.vatKw) : [kw(p.vatKw), { text: ` (${p.vat}%)`, color: JASNY, fontSize: 9 }], alignment: "right" },
+    { text: kw(p.brutto), alignment: "right", bold: true },
+    { text: kw(p.netto / p.naklad), alignment: "right" },
+    { text: `${p.termin} dni rob.`, alignment: "right" }]);
+  const rok = d.dzis.getFullYear();
+
+  return {
+    pageSize: "A4", pageMargins: [40, 28, 40, 46],
+    pageBreakBefore: (wezel, nastepneNaStronie) => wezel.headlineLevel === 1 && nastepneNaStronie.length < 2,
+    info: { title: `Oferta ${d.numer}`, author: f.nazwa, subject: d.dotyczy },
+    defaultStyle: { font: "Garamond", fontSize: 11, lineHeight: 1.14, color: INK },
+    background: (strona, rozmiar) => {
+      const el = [];
+      // delikatne pionowe kreskowanie papieru, jak tło strony www
+      const linie = [];
+      for (let x = 0; x < rozmiar.width; x += 5) linie.push({ type: "line", x1: x, y1: 0, x2: x, y2: rozmiar.height - 34, lineWidth: 0.3, lineColor: "#f4f2ee" });
+      el.push({ canvas: linie, absolutePosition: { x: 0, y: 0 } });
+      if (zasoby.prasa) el.push({ image: zasoby.prasa, width: 420, opacity: 0.07, absolutePosition: { x: (rozmiar.width - 420) / 2, y: rozmiar.height - 34 - 300 } });
+      el.push({ canvas: [{ type: "rect", x: 0, y: 0, w: rozmiar.width, h: 34, color: "#000000" }], absolutePosition: { x: 0, y: rozmiar.height - 34 } });
+      return el;
+    },
+    footer: (str, ile) => ({ margin: [40, 24, 40, 0], columns: [
+      { text: f.nazwa, font: "CormorantSC", fontSize: 11, characterSpacing: 1.6, color: "#ffffff" },
+      { text: f.www, alignment: "center", fontSize: 9.5, color: "#d0d0d0", margin: [0, 1, 0, 0] },
+      { text: `str. ${str} z ${ile}  ·  ${rzym(rok)}`, alignment: "right", fontSize: 9, italics: true, color: "#bdbdbd", margin: [0, 1, 0, 0] }] }),
+    content: [
+      { columns: [
+        znak,
+        { width: "*", margin: [12, 8, 0, 0], stack: [
+          { text: f.nazwa, font: "CormorantSC", fontSize: 18, characterSpacing: 3 },
+          { text: "Projekt · skład · druk — od pomysłu do dostawy", italics: true, fontSize: 10.5, color: SZARY }] },
+        { width: 170, margin: [0, 4, 0, 0], alignment: "right", fontSize: 9.5, color: SZARY, lineHeight: 1.15,
+          text: [{ text: f.osoba + "\n", font: "CormorantSC", fontSize: 11, characterSpacing: 0.8, color: INK }, `tel. ${f.telefon}\n${f.email}\n${f.www}`] }] },
+      podwojna(8, 0),
+
+      { text: "Oferta handlowa", font: "CormorantSC", fontSize: 11, characterSpacing: 3, color: SZARY, alignment: "center", margin: [0, 10, 0, 0] },
+      { text: `Oferta nr ${d.numer}`, font: "Cormorant", bold: true, fontSize: 24, alignment: "center", lineHeight: 1, margin: [0, 0, 0, 0] },
+      romb(170),
+
+      { margin: [0, 6, 0, 0], ...ramka({ stack: [
+        { columns: [
+          { width: "*", stack: [{ text: "Dla", font: "CormorantSC", color: SZARY, characterSpacing: 0.8, fontSize: 10 }, { text: d.klient, bold: true }, d.osoba ? { text: d.osoba } : ""] },
+          { width: 150, stack: [{ text: "Data oferty", font: "CormorantSC", color: SZARY, characterSpacing: 0.8, fontSize: 10 }, { text: dzien(d.dzis) }] },
+          { width: 110, stack: [{ text: "Ważna do", font: "CormorantSC", color: SZARY, characterSpacing: 0.8, fontSize: 10 }, { text: dzien(d.wazna), bold: true }] }] },
+        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 475, y2: 0, lineWidth: 0.5, dash: { length: 0.6, space: 2.2 } }], margin: [0, 5, 0, 4] },
+        { columns: [{ width: 52, text: "Dotyczy", font: "CormorantSC", color: SZARY, characterSpacing: 0.8, fontSize: 10, margin: [0, 1, 0, 0] }, { width: "*", text: d.dotyczy, italics: true }] }] }, 8) },
+
+      { text: `${d.osoba ? "Szanowni Państwo," : "Dzień dobry,"} dziękujemy za zapytanie. Przedstawiamy ofertę na realizację zlecenia — każdy plik sprawdzimy przed drukiem, a w razie potrzeby pomożemy go przygotować.`, margin: [0, 9, 0, 0] },
+
+      ...(specWiersze.length ? [rozdzial("I", "Specyfikacja"),
+        { table: { widths: [110, "*"], body: specWiersze },
+          layout: { hLineWidth: (i, n) => (i > 0 && i < n.table.body.length ? 0.6 : 0), vLineWidth: () => 0, hLineColor: () => INK, hLineStyle: () => ({ dash: { length: 0.6, space: 2.2 } }), paddingTop: () => 2.5, paddingBottom: () => 2.5, paddingLeft: () => 0 } }] : []),
+
+      rozdzial(specWiersze.length ? "II" : "I", "Cena"),
+      { margin: [0, 4, 0, 0], unbreakable: true, ...ramka({ table: { headerRows: 1, widths: ["*", 72, 64, 80, 62, 62], body: [naglowki, ...wiersze] },
+        layout: { hLineWidth: (i, n) => (i === 1 ? 0.8 : (i > 1 && i < n.table.body.length ? 0.5 : 0)), vLineWidth: () => 0, hLineColor: () => INK,
+          hLineStyle: (i) => (i > 1 ? { dash: { length: 0.6, space: 2.2 } } : null), paddingTop: () => 4, paddingBottom: () => 4, paddingLeft: (i) => (i === 0 ? 0 : 4), paddingRight: (i, n) => (i === n.table.widths.length - 1 ? 0 : 4) } }, 8) },
+      
+      rozdzial(specWiersze.length ? "III" : "II", "Warunki"),
+      { table: { widths: [18, "*"], body: (d.warunki || []).map((w, i) => [{ text: rzym(i + 1) + ".", font: "Cormorant", bold: true, fontSize: 11 }, { text: w, fontSize: 10 }]) },
+        layout: { hLineWidth: (i, n) => (i > 0 && i < n.table.body.length ? 0.5 : 0), vLineWidth: () => 0, hLineColor: () => INK, hLineStyle: () => ({ dash: { length: 0.6, space: 2.2 } }), paddingTop: () => 2, paddingBottom: () => 2, paddingLeft: () => 0 } },
+
+      { unbreakable: true, margin: [0, 8, 0, 0], columns: [
+        { width: "*", margin: [0, 10, 0, 0], stack: [{ text: "Z poważaniem", italics: true, alignment: "center", fontSize: 11, color: SZARY }, romb(110, W - 220)] },
+        { width: 220, ...ramka({ stack: [
+          { text: "Twój opiekun zlecenia", font: "CormorantSC", fontSize: 9.5, characterSpacing: 1.4, color: SZARY, alignment: "center" },
+          { text: f.osoba, font: "Cormorant", bold: true, fontSize: 17, alignment: "center", margin: [0, 0, 0, 0] },
+          { text: `tel. ${f.telefon}  ·  ${f.email}`, fontSize: 9.5, alignment: "center" }] }, 5) }] }
+    ]
+  };
+}
+// --- PDF-OFERTA-KONIEC
+
+// =====================================================================================
+//  ADMIN — drukarnie
+// =====================================================================================
+function widokDrukarnie() {
+  $app.innerHTML = `<h1>Drukarnie</h1>
+  <form id="f" class="box grid">
+    <label>Nazwa drukarni<input name="nazwa" required></label>
+    <label>E-mail (login do panelu)<input name="email" type="email" required></label>
+    <label>Telefon<input name="telefon"></label>
+    <label>Specjalizacje (przecinki)<input name="tagi" placeholder="książki, offset, cyfra, opakowania"></label>
+    <div class="row" style="align-self:end"><button class="primary" type="submit">Dodaj / zapisz</button></div>
+  </form>
+  <p class="small muted">Po dodaniu wyślij drukarni link do panelu. Przy pierwszym wejściu klika „Pierwsze logowanie — utwórz hasło” na tym samym adresie e-mail i potwierdza go linkiem z maila.</p>
+  <div id="lista"></div>`;
+  const f = document.getElementById("f");
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const em = emailKey(f.email.value);
+    await setDoc(doc(db, "drukarnie", em), { nazwa: f.nazwa.value.trim(), email: em, telefon: f.telefon.value.trim(),
+      tagi: f.tagi.value.split(",").map((t) => t.trim()).filter(Boolean), aktywna: true }, { merge: true }).then(() => { info("Zapisano drukarnię."); f.reset(); }).catch((err) => info("Błąd: " + err.code));
+  };
+  odsubskrybuj.push(onSnapshot(collection(db, "drukarnie"), (s) => {
+    const l = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.nazwa || "").localeCompare(b.nazwa || "", "pl"));
+    document.getElementById("lista").innerHTML = l.length ? `<table><tr><th>Drukarnia</th><th>Kontakt</th><th>Specjalizacje</th><th></th></tr>
+      ${l.map((d) => `<tr class="${d.aktywna === false ? "muted" : ""}"><td><strong>${esc(d.nazwa)}</strong>${d.aktywna === false ? ' <span class="tag">nieaktywna</span>' : ""}</td>
+        <td class="small">${esc(d.id)}<br>${esc(d.telefon || "")}</td><td class="small">${esc((d.tagi || []).join(", "))}</td>
+        <td class="row"><button class="small" data-edytuj="${esc(d.id)}">edytuj</button><button class="small" data-akt="${esc(d.id)}">${d.aktywna === false ? "aktywuj" : "wyłącz"}</button></td></tr>`).join("")}</table>` : "<p>Brak drukarń.</p>";
+    document.querySelectorAll("[data-akt]").forEach((b) => b.onclick = () => { const d = l.find((x) => x.id === b.dataset.akt); updateDoc(doc(db, "drukarnie", d.id), { aktywna: d.aktywna === false }); });
+    document.querySelectorAll("[data-edytuj]").forEach((b) => b.onclick = () => { const d = l.find((x) => x.id === b.dataset.edytuj); f.nazwa.value = d.nazwa || ""; f.email.value = d.id; f.telefon.value = d.telefon || ""; f.tagi.value = (d.tagi || []).join(", "); window.scrollTo(0, 0); });
+  }));
+}
+
+// =====================================================================================
+//  DRUKARNIA — lista i składanie oferty
+// =====================================================================================
+function widokListaDrukarnia() {
+  $app.innerHTML = `<h1>Zapytania ofertowe</h1><p class="muted">Zalogowano jako <strong>${esc(ja.nazwa)}</strong>. Ofertę możesz zmieniać (np. obniżyć cenę) do końca licytacji.</p><div id="lista"><p class="muted">Ładowanie…</p></div>`;
+  const q = query(collection(db, "zapytania"), where("zaproszeni", "array-contains", ja.email));
+  odsubskrybuj.push(onSnapshot(q, (snap) => {
+    const l = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((z) => z.status !== "anulowane")
+      .sort((a, b) => data(b.koniec) - data(a.koniec));
+    const otwarte = l.filter((z) => z.status === "otwarte" && data(z.koniec) > new Date()), reszta = l.filter((z) => !otwarte.includes(z));
+    const karta = (z) => `<a class="card" href="#/z/${z.id}"><div class="row" style="justify-content:space-between"><strong>${esc(z.tytul)}</strong>${otwarte.includes(z) ? '<span class="tag ok">otwarte</span>' : '<span class="tag muted">zakończone</span>'}</div>
+      <span class="small muted">Nakłady: ${esc((z.naklady || []).join(" / "))}</span>
+      <span class="small">Koniec: ${fmtData(z.koniec)}${otwarte.includes(z) ? " · zostało " + timerHtml(z.koniec) : ""}</span>
+      ${z.najnizsze && otwarte.includes(z) ? `<span class="small warn">Najniższa cena do pobicia: ${Object.entries(z.najnizsze).map(([n, v]) => `${esc(n)} egz. — ${zl(v)}`).join("; ")}</span>` : ""}</a>`;
+    document.getElementById("lista").innerHTML = (otwarte.length ? `<h2>Otwarte</h2><div class="cards">${otwarte.map(karta).join("")}</div>` : "<p>Brak otwartych zapytań.</p>") +
+      (reszta.length ? `<h2>Zakończone</h2><div class="cards">${reszta.slice(0, 30).map(karta).join("")}</div>` : "");
+  }, (e) => { document.getElementById("lista").innerHTML = `<p class="err">Błąd odczytu: ${esc(e.code)}</p>`; }));
+}
+
+function widokZapytanieDrukarnia(id) {
+  $app.innerHTML = `<p class="muted">Ładowanie…</p>`;
+  let z = null, moja = null, edytuje = false;
+  odsubskrybuj.push(onSnapshot(doc(db, "zapytania", id), (s) => { z = s.exists() ? s.data() : null; if (!edytuje) rysuj(); }, () => { $app.innerHTML = `<p class="err">Brak dostępu do tego zapytania.</p>`; }));
+  odsubskrybuj.push(onSnapshot(doc(db, "zapytania", id, "oferty", ja.email), (s) => { moja = s.exists() ? s.data() : null; if (!edytuje) rysuj(); }, () => {}));
+  function rysuj() {
+    if (!z) return;
+    const otwarte = z.status === "otwarte" && data(z.koniec) > new Date();
+    const poz = (n) => (moja?.pozycje || []).find((p) => +p.naklad === +n) || {};
+    $app.innerHTML = `<h1>${esc(z.tytul)}</h1>
+      <div class="box dbl"><div class="grid">
+        <div><span class="muted small">Koniec licytacji</span><br><strong>${fmtData(z.koniec)}</strong></div>
+        <div><span class="muted small">Pozostało</span><br>${otwarte ? timerHtml(z.koniec) : "zakończona"}</div>
+        <div><span class="muted small">Twoja oferta</span><br>${moja ? `<span class="ok">złożona</span> <span class="small muted">(${fmtData(moja.zmieniono)})</span>` : '<span class="warn">jeszcze nie złożona</span>'}</div>
+      </div>
+      ${z.najnizsze && otwarte ? `<p class="warn" style="margin-bottom:0"><strong>Najniższa cena do pobicia</strong> (netto z transportem): ${Object.entries(z.najnizsze).map(([n, v]) => {
+        const mojaC = poz(n).cena ? razem(poz(n)) : null;
+        return `${esc(n)} egz. — <strong>${zl(v)}</strong>${mojaC != null ? (mojaC <= v + 0.001 ? ' <span class="tag ok">Twoja oferta jest najniższa</span>' : ` <span class="small">(Twoja: ${zl(mojaC)})</span>`) : ""}`; }).join(" · ")}</p>` : ""}
+      </div>
+      <h2>Specyfikacja</h2><div class="box pre">${esc(z.specyfikacja)}</div>
+      ${z.plikiLink ? `<p>Pliki / makieta: <a href="${esc(z.plikiLink)}" target="_blank" rel="noopener">${esc(z.plikiLink)}</a></p>` : ""}
+      <h2>${otwarte ? (moja ? "Zmień ofertę" : "Złóż ofertę") : "Twoja oferta"}</h2>
+      <form id="f"><div class="scroll"><table><tr><th>Nakład</th><th>Cena netto druku (zł)</th><th>Transport netto (zł)</th><th>Termin (dni rob.)</th><th>Grzbiet (mm)</th></tr>
+        ${(z.naklady || []).map((n) => `<tr><td><strong>${esc(n)} egz.</strong></td>
+          <td><input name="cena_${n}" inputmode="decimal" value="${esc(poz(n).cena ?? "")}" ${otwarte ? "" : "disabled"} placeholder="0,00"></td>
+          <td><input name="tr_${n}" inputmode="decimal" value="${esc(poz(n).transport ?? "")}" ${otwarte ? "" : "disabled"} placeholder="0 = w cenie"></td>
+          <td><input name="t_${n}" inputmode="numeric" value="${esc(poz(n).termin ?? "")}" ${otwarte ? "" : "disabled"}></td>
+          <td><input name="g_${n}" inputmode="decimal" value="${esc(poz(n).grzbiet ?? "")}" ${otwarte ? "" : "disabled"} placeholder="jeśli dotyczy"></td></tr>`).join("")}</table></div>
+        <div class="grid" style="margin-top:10px">
+          <label>Link do wykrojnika / układu (opcjonalnie)<input name="wykrojnik" value="${esc(moja?.wykrojnik || "")}" ${otwarte ? "" : "disabled"}></label>
+          <label>Uwagi<input name="uwagi" value="${esc(moja?.uwagi || "")}" ${otwarte ? "" : "disabled"} placeholder="np. papier zamienny, warunki płatności"></label>
+        </div>
+        ${otwarte ? `<div class="row" style="margin-top:12px"><button class="primary" type="submit">${moja ? "Zapisz zmiany" : "Złóż ofertę"}</button>
+          <span class="small muted">Nakład, którego nie wyceniasz, zostaw pusty. Ceny innych drukarń nie są widoczne.</span></div>` : `<p class="muted">Licytacja zakończona — dziękujemy. Wynik przekażemy mailowo.</p>`}
+      </form>`;
+    const f = document.getElementById("f");
+    f.addEventListener("focusin", () => edytuje = true);
+    f.addEventListener("focusout", () => setTimeout(() => { if (!f.contains(document.activeElement)) edytuje = false; }, 200));
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const pozycje = [];
+      for (const n of z.naklady) {
+        const c = liczba(f["cena_" + n].value);
+        if (!f["cena_" + n].value.trim()) continue;
+        const t = parseInt(f["t_" + n].value, 10);
+        if (!(c > 0)) return info(`Nakład ${n}: podaj cenę.`);
+        if (!(t > 0)) return info(`Nakład ${n}: podaj termin w dniach roboczych.`);
+        const tr = liczba(f["tr_" + n].value);
+        const g = liczba(f["g_" + n].value);
+        pozycje.push({ naklad: +n, cena: c, transport: isFinite(tr) ? tr : 0, termin: t, grzbiet: isFinite(g) ? g : null });
+      }
+      if (!pozycje.length) return info("Wyceń co najmniej jeden nakład.");
+      try {
+        await setDoc(doc(db, "zapytania", id, "oferty", ja.email), { drukarnia: ja.nazwa, email: ja.email, pozycje, uwagi: f.uwagi.value.trim(), wykrojnik: f.wykrojnik.value.trim(),
+          zlozono: moja?.zlozono || serverTimestamp(), zmieniono: serverTimestamp() });
+        edytuje = false; info("Oferta zapisana. Dziękujemy!");
+      } catch (err) { info(err.code === "permission-denied" ? "Nie można zapisać — licytacja mogła się zakończyć." : "Błąd: " + err.code); }
+    };
+  }
+}
+</script>
+</body>
+</html>
