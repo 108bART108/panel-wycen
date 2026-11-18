@@ -85,7 +85,7 @@ const KONFIG = {
   waznoscDni: 14,
   zapasDni: 2,                // dni robocze doliczane do terminu drukarni w ofercie dla klienta
   zaokraglenie: 10,           // zaokrąglenie ceny netto w górę do pełnych X zł
-  godzinyKomunikatu: 12,      // ile godzin przed końcem drukarnie dostają najniższą cenę
+  godzinyKomunikatu: 2,       // ile godzin przed końcem: najniższa cena dla pozostałych, pytanie o rabat dla najtańszej
   warunki: [
     "Ceny zawierają transport na jeden adres na terenie Polski, o ile nie zaznaczono inaczej.",
     "Termin realizacji liczony jest w dniach roboczych od akceptacji plików i proofa.",
@@ -166,6 +166,8 @@ function ekranLogowania(blad = "") {
 onAuthStateChanged(auth, async (u) => {
   zatrzymajNasluchy();
   if (!u) { ja = null; return ekranLogowania(); }
+  // po kliknięciu linku weryfikacyjnego: odśwież dane konta i token (inaczej reguły bazy widzą jeszcze „niepotwierdzony e-mail”)
+  try { await u.reload(); if (u.emailVerified) await u.getIdToken(true); } catch (e) {}
   if (!u.emailVerified) {
     $nav.innerHTML = `<button id="wyl">Wyloguj</button>`; document.getElementById("wyl").onclick = () => signOut(auth);
     $app.innerHTML = `<div class="center box dbl"><h1 style="margin-top:0">Potwierdź e-mail</h1>
@@ -319,7 +321,7 @@ function tabelaOfert(z, oferty, zaznacz = true) {
       ${wiersze.map(({ o, p }, i) => `<tr class="${zaznacz && i === 0 ? "best" : ""}"><td>${i + 1}</td><td><strong>${esc(o.drukarnia || o.id)}</strong>${razem(p) === min ? ' <span class="tag ok">najniższa</span>' : ""}${(+p.termin === minT) ? ' <span class="tag">najszybsza</span>' : ""}<br><span class="small muted">zmieniono ${fmtData(o.zmieniono)}</span></td>
         <td class="num">${zl(p.cena)}</td><td class="num">${zl(p.transport)}</td><td class="num"><strong>${zl(razem(p))}</strong></td><td class="num">${zl(razem(p) / n)}</td>
         <td class="num">${esc(p.termin || "—")} dni</td><td class="num">${p.grzbiet ? esc(p.grzbiet) + " mm" : "—"}</td>
-        <td class="small">${esc(o.uwagi || "")}${o.wykrojnik ? `<br><a href="${esc(o.wykrojnik)}" target="_blank" rel="noopener">wykrojnik / makieta</a>` : ""}</td></tr>`).join("")}</table></div>`;
+        <td class="small">${esc(o.uwagi || "")}${o.wykrojnik ? `<br><a href="${esc(o.wykrojnik)}" target="_blank" rel="noopener">wykrojnik / makieta</a>` : ""}${o.plik ? `<br><a href="#" data-plik="${esc(o.id)}">plik oferty: ${esc(o.plik.nazwa)}</a>` : ""}</td></tr>`).join("")}</table></div>`;
   }).join("");
 }
 
@@ -349,7 +351,7 @@ function widokZapytanieAdmin(id) {
         <div><span class="muted small">Koniec licytacji</span><br><strong>${fmtData(z.koniec)}</strong></div>
         <div><span class="muted small">Pozostało</span><br>${z.status === "otwarte" ? timerHtml(z.koniec) : "—"}</div>
         <div><span class="muted small">Oferty</span><br><strong>${zlozyli.size} / ${(z.zaproszeni || []).length}</strong><br><span class="small muted">przypomnienie dla spóźnionych: ${z.przypomnienieWyslane ? "wysłane" : "6 h przed końcem"}</span></div>
-        <div><span class="muted small">Komunikat „cena do pobicia”</span><br>${z.komunikatWyslany ? '<span class="ok">wysłany</span>' : (z.wyslijKomunikatTeraz ? '<span class="warn">czeka na bota</span>' : `za ${KONFIG.godzinyKomunikatu} h przed końcem`)}</div>
+        <div><span class="muted small">Komunikat „cena do pobicia” / pytanie o rabat</span><br>${z.komunikatWyslany ? '<span class="ok">wysłany</span>' : (z.wyslijKomunikatTeraz ? '<span class="warn">czeka na bota</span>' : `za ${KONFIG.godzinyKomunikatu} h przed końcem`)}</div>
       </div>
       <div class="row" style="margin-top:12px">
         <a class="btn primary" href="#/oferta/${id}">Oferta dla klienta (marża + PDF)</a>
@@ -369,12 +371,23 @@ function widokZapytanieAdmin(id) {
       ${z.plikiLink ? `<p>Pliki: <a href="${esc(z.plikiLink)}" target="_blank" rel="noopener">${esc(z.plikiLink)}</a></p>` : ""}
       <h2>Klient</h2><div class="box">${pryw.klient ? `<strong>${esc(pryw.klient)}</strong> ${esc(pryw.osoba || "")} ${pryw.email ? "· " + esc(pryw.email) : ""}<br><span class="small muted">${esc(pryw.notatka || "")}</span>` : '<span class="muted">nie podano — uzupełnisz przy ofercie</span>'}
         ${(pryw.oferty || []).length ? `<p class="small">Wygenerowane oferty: ${pryw.oferty.map((o) => `${esc(o.numer)} (${fmtData(o.data)})`).join(", ")}</p>` : ""}</div>`;
+    document.querySelectorAll("[data-plik]").forEach((a) => a.onclick = async (ev) => {
+      ev.preventDefault();
+      try {
+        const s = await getDoc(doc(db, "zapytania", id, "pliki", a.dataset.plik));
+        if (!s.exists()) return info("Plik nie został jeszcze zapisany.");
+        const p = s.data(), bin = atob(p.dane), b = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+        const url = URL.createObjectURL(new Blob([b], { type: p.typ }));
+        const l = document.createElement("a"); l.href = url; l.download = p.nazwa; l.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } catch (e) { info("Nie udało się pobrać pliku: " + e.code); }
+    });
     const ref = doc(db, "zapytania", id);
     const zmien = (d, t) => updateDoc(ref, d).then(() => info(t)).catch((e) => info("Błąd: " + e.code));
     document.getElementById("komunikat")?.addEventListener("click", () => {
       const n = najnizszeZ(z, oferty);
       if (!Object.keys(n).length) return info("Nie ma jeszcze żadnych ofert.");
-      if (confirm("Drukarnie, które złożyły oferty, dostaną mailem najniższą cenę (bez nazwy drukarni). Wysłać?")) zmien({ najnizsze: n, wyslijKomunikatTeraz: true }, "Komunikat wyśle bot w ciągu 30 min. Najniższa cena już jest widoczna w panelu drukarń.");
+      if (confirm("Drukarnie, które złożyły oferty, dostaną mailem najniższą cenę (bez nazwy drukarni), a drukarnia z najniższą ceną — pytanie o rabat. Wysłać?")) zmien({ najnizsze: n, wyslijKomunikatTeraz: true }, "Komunikat wyśle bot w ciągu 30 min. Najniższa cena już jest widoczna w panelu drukarń.");
     });
     document.getElementById("plus24")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(data(z.koniec).getTime() + 24 * 3600e3)), komunikatWyslany: false, przypomnienieWyslane: false }, "Przedłużono o 24 h."));
     document.getElementById("wznow")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(Math.max(Date.now(), data(z.koniec).getTime()) + 24 * 3600e3)), status: "otwarte", komunikatWyslany: false, przypomnienieWyslane: false, podsumowanieWyslane: false }, "Wznowiono na 24 h."));
@@ -642,7 +655,7 @@ function widokDrukarnie() {
     document.getElementById("lista").innerHTML = l.length ? `<table><tr><th>Drukarnia</th><th>Kontakt</th><th>Specjalizacje</th><th></th></tr>
       ${l.map((d) => `<tr class="${d.aktywna === false ? "muted" : ""}"><td><strong>${esc(d.nazwa)}</strong>${d.aktywna === false ? ' <span class="tag">nieaktywna</span>' : ""}</td>
         <td class="small">${esc(d.id)}<br>${esc(d.telefon || "")}</td><td class="small">${esc((d.tagi || []).join(", "))}</td>
-        <td class="row"><button class="small" data-edytuj="${esc(d.id)}">edytuj</button><button class="small" data-akt="${esc(d.id)}">${d.aktywna === false ? "aktywuj" : "wyłącz"}</button></td></tr>`).join("")}</table>` : "<p>Brak drukarń.</p>";
+        <td><div class="row"><button class="small" data-edytuj="${esc(d.id)}">edytuj</button><button class="small" data-akt="${esc(d.id)}">${d.aktywna === false ? "aktywuj" : "wyłącz"}</button></div></td></tr>`).join("")}</table>` : "<p>Brak drukarń.</p>";
     document.querySelectorAll("[data-akt]").forEach((b) => b.onclick = () => { const d = l.find((x) => x.id === b.dataset.akt); updateDoc(doc(db, "drukarnie", d.id), { aktywna: d.aktywna === false }); });
     document.querySelectorAll("[data-edytuj]").forEach((b) => b.onclick = () => { const d = l.find((x) => x.id === b.dataset.edytuj); f.nazwa.value = d.nazwa || ""; f.email.value = d.id; f.telefon.value = d.telefon || ""; f.tagi.value = (d.tagi || []).join(", "); window.scrollTo(0, 0); });
   }));
@@ -661,7 +674,7 @@ function widokListaDrukarnia() {
     const karta = (z) => `<a class="card" href="#/z/${z.id}"><div class="row" style="justify-content:space-between"><strong>${esc(z.tytul)}</strong>${otwarte.includes(z) ? '<span class="tag ok">otwarte</span>' : '<span class="tag muted">zakończone</span>'}</div>
       <span class="small muted">Nakłady: ${esc((z.naklady || []).join(" / "))}</span>
       <span class="small">Koniec: ${fmtData(z.koniec)}${otwarte.includes(z) ? " · zostało " + timerHtml(z.koniec) : ""}</span>
-      ${z.najnizsze && otwarte.includes(z) ? `<span class="small warn">Najniższa cena do pobicia: ${Object.entries(z.najnizsze).map(([n, v]) => `${esc(n)} egz. — ${zl(v)}`).join("; ")}</span>` : ""}</a>`;
+      ${z.najnizsze && otwarte.includes(z) ? `<span class="small warn">Ostatnie godziny licytacji — sprawdź swoją ofertę</span>` : ""}</a>`;
     document.getElementById("lista").innerHTML = (otwarte.length ? `<h2>Otwarte</h2><div class="cards">${otwarte.map(karta).join("")}</div>` : "<p>Brak otwartych zapytań.</p>") +
       (reszta.length ? `<h2>Zakończone</h2><div class="cards">${reszta.slice(0, 30).map(karta).join("")}</div>` : "");
   }, (e) => { document.getElementById("lista").innerHTML = `<p class="err">Błąd odczytu: ${esc(e.code)}</p>`; }));
@@ -670,6 +683,7 @@ function widokListaDrukarnia() {
 function widokZapytanieDrukarnia(id) {
   $app.innerHTML = `<p class="muted">Ładowanie…</p>`;
   let z = null, moja = null, edytuje = false;
+  const MAKS_PLIK = 700 * 1024;
   odsubskrybuj.push(onSnapshot(doc(db, "zapytania", id), (s) => { z = s.exists() ? s.data() : null; if (!edytuje) rysuj(); }, () => { $app.innerHTML = `<p class="err">Brak dostępu do tego zapytania.</p>`; }));
   odsubskrybuj.push(onSnapshot(doc(db, "zapytania", id, "oferty", ja.email), (s) => { moja = s.exists() ? s.data() : null; if (!edytuje) rysuj(); }, () => {}));
   function rysuj() {
@@ -682,22 +696,33 @@ function widokZapytanieDrukarnia(id) {
         <div><span class="muted small">Pozostało</span><br>${otwarte ? timerHtml(z.koniec) : "zakończona"}</div>
         <div><span class="muted small">Twoja oferta</span><br>${moja ? `<span class="ok">złożona</span> <span class="small muted">(${fmtData(moja.zmieniono)})</span>` : '<span class="warn">jeszcze nie złożona</span>'}</div>
       </div>
-      ${z.najnizsze && otwarte ? `<p class="warn" style="margin-bottom:0"><strong>Najniższa cena do pobicia</strong> (netto z transportem): ${Object.entries(z.najnizsze).map(([n, v]) => {
-        const mojaC = poz(n).cena ? razem(poz(n)) : null;
-        return `${esc(n)} egz. — <strong>${zl(v)}</strong>${mojaC != null ? (mojaC <= v + 0.001 ? ' <span class="tag ok">Twoja oferta jest najniższa</span>' : ` <span class="small">(Twoja: ${zl(mojaC)})</span>`) : ""}`; }).join(" · ")}</p>` : ""}
+      ${z.najnizsze && otwarte ? (() => {
+        const wpisy = Object.entries(z.najnizsze), mojaC = (n) => (poz(n).cena ? razem(poz(n)) : null);
+        const moje = wpisy.filter(([n, v]) => mojaC(n) != null && mojaC(n) <= v + 0.001);
+        const reszta = wpisy.filter(([n, v]) => !moje.some(([m]) => m === n));
+        let h = "";
+        if (moje.length) h += `<p class="warn" style="margin-bottom:0"><strong>Czy możliwy jest jakiś rabat?</strong> Jeśli tak — obniż cenę w formularzu poniżej do końca licytacji (${moje.map(([n]) => esc(n) + " egz.").join(", ")}).</p>`;
+        if (reszta.length) h += `<p class="warn" style="margin-bottom:0"><strong>Najniższa cena do pobicia</strong> (netto z transportem): ${reszta.map(([n, v]) => `${esc(n)} egz. — <strong>${zl(v)}</strong>${mojaC(n) != null ? ` <span class="small">(Twoja: ${zl(mojaC(n))})</span>` : ""}`).join(" · ")}</p>`;
+        return h; })() : ""}
       </div>
       <h2>Specyfikacja</h2><div class="box pre">${esc(z.specyfikacja)}</div>
       ${z.plikiLink ? `<p>Pliki / makieta: <a href="${esc(z.plikiLink)}" target="_blank" rel="noopener">${esc(z.plikiLink)}</a></p>` : ""}
       <h2>${otwarte ? (moja ? "Zmień ofertę" : "Złóż ofertę") : "Twoja oferta"}</h2>
-      <form id="f"><div class="scroll"><table><tr><th>Nakład</th><th>Cena netto druku (zł)</th><th>Transport netto (zł)</th><th>Termin (dni rob.)</th><th>Grzbiet (mm)</th></tr>
+      <form id="f"><div class="scroll"><table><tr><th>Nakład</th><th>Cena netto druku (zł)</th><th>Transport netto (zł)</th><th>Termin (dni rob.)</th><th>Grzbiet (mm) <span class="small muted">— opcjonalnie</span></th></tr>
         ${(z.naklady || []).map((n) => `<tr><td><strong>${esc(n)} egz.</strong></td>
           <td><input name="cena_${n}" inputmode="decimal" value="${esc(poz(n).cena ?? "")}" ${otwarte ? "" : "disabled"} placeholder="0,00"></td>
           <td><input name="tr_${n}" inputmode="decimal" value="${esc(poz(n).transport ?? "")}" ${otwarte ? "" : "disabled"} placeholder="0 = w cenie"></td>
           <td><input name="t_${n}" inputmode="numeric" value="${esc(poz(n).termin ?? "")}" ${otwarte ? "" : "disabled"}></td>
-          <td><input name="g_${n}" inputmode="decimal" value="${esc(poz(n).grzbiet ?? "")}" ${otwarte ? "" : "disabled"} placeholder="jeśli dotyczy"></td></tr>`).join("")}</table></div>
+          <td><input name="g_${n}" inputmode="decimal" value="${esc(poz(n).grzbiet ?? "")}" ${otwarte ? "" : "disabled"} placeholder="jeśli znany"></td></tr>`).join("")}</table></div>
         <div class="grid" style="margin-top:10px">
           <label>Link do wykrojnika / układu (opcjonalnie)<input name="wykrojnik" value="${esc(moja?.wykrojnik || "")}" ${otwarte ? "" : "disabled"}></label>
           <label>Uwagi<input name="uwagi" value="${esc(moja?.uwagi || "")}" ${otwarte ? "" : "disabled"} placeholder="np. papier zamienny, warunki płatności"></label>
+        </div>
+        <div class="box" style="margin-top:10px">
+          <span class="small muted">Plik z ofertą (opcjonalnie: PDF, JPG, PNG, XLSX, DOCX — do 700 KB). To dodatek — formularz powyżej trzeba wypełnić tak czy inaczej.</span><br>
+          ${moja?.plik ? `<span>Załączony: <strong>${esc(moja.plik.nazwa)}</strong> <span class="small muted">(${Math.round(moja.plik.rozmiar / 1024)} KB)</span></span>
+            ${otwarte ? `<label class="check" style="display:inline-flex;margin-left:12px"><input type="checkbox" name="usunPlik"> usuń plik</label>` : ""}<br>` : ""}
+          ${otwarte ? `<input type="file" name="plik" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.doc" style="margin-top:6px">` : ""}
         </div>
         ${otwarte ? `<div class="row" style="margin-top:12px"><button class="primary" type="submit">${moja ? "Zapisz zmiany" : "Złóż ofertę"}</button>
           <span class="small muted">Nakład, którego nie wyceniasz, zostaw pusty. Ceny innych drukarń nie są widoczne.</span></div>` : `<p class="muted">Licytacja zakończona — dziękujemy. Wynik przekażemy mailowo.</p>`}
@@ -719,9 +744,20 @@ function widokZapytanieDrukarnia(id) {
         pozycje.push({ naklad: +n, cena: c, transport: isFinite(tr) ? tr : 0, termin: t, grzbiet: isFinite(g) ? g : null });
       }
       if (!pozycje.length) return info("Wyceń co najmniej jeden nakład.");
+      const nowyPlik = f.plik?.files?.[0] || null;
+      if (nowyPlik && nowyPlik.size > MAKS_PLIK) return info(`Plik jest za duży (${Math.round(nowyPlik.size / 1024)} KB). Limit to 700 KB — zapisz PDF w mniejszej jakości albo wklej link w polu „Link do wykrojnika / układu”.`, 7000);
+      let plikMeta = moja?.plik || null;
+      if (f.usunPlik?.checked) plikMeta = null;
+      if (nowyPlik) plikMeta = { nazwa: nowyPlik.name, rozmiar: nowyPlik.size };
       try {
         await setDoc(doc(db, "zapytania", id, "oferty", ja.email), { drukarnia: ja.nazwa, email: ja.email, pozycje, uwagi: f.uwagi.value.trim(), wykrojnik: f.wykrojnik.value.trim(),
-          zlozono: moja?.zlozono || serverTimestamp(), zmieniono: serverTimestamp() });
+          plik: plikMeta, zlozono: moja?.zlozono || serverTimestamp(), zmieniono: serverTimestamp() });
+        if (nowyPlik) {
+          const dane = naBase64(await nowyPlik.arrayBuffer());
+          await setDoc(doc(db, "zapytania", id, "pliki", ja.email), { email: ja.email, nazwa: nowyPlik.name, typ: nowyPlik.type || "application/octet-stream", rozmiar: nowyPlik.size, dane, dodano: serverTimestamp() });
+        } else if (f.usunPlik?.checked) {
+          await deleteDoc(doc(db, "zapytania", id, "pliki", ja.email)).catch(() => {});
+        }
         edytuje = false; info("Oferta zapisana. Dziękujemy!");
       } catch (err) { info(err.code === "permission-denied" ? "Nie można zapisać — licytacja mogła się zakończyć." : "Błąd: " + err.code); }
     };
