@@ -3,9 +3,10 @@ Bot licytacji Panelu wycen IB Projekt Printing — uruchamiany co 30 min przez G
 
 Dla każdego otwartego zapytania:
   1. ZAPROSZENIA   — drukarnie dodane do zapytania, które nie dostały jeszcze maila, dostają zaproszenie z linkiem.
-  2. KOMUNIKAT     — na GODZINY_KOMUNIKATU (12 h) przed końcem (albo gdy klikniesz „Wyślij teraz” w panelu)
+  2. KOMUNIKAT     — na GODZINY_KOMUNIKATU (2 h) przed końcem (albo gdy klikniesz „Wyślij teraz” w panelu)
                      drukarnie, które złożyły ofertę, dostają najniższą cenę do pobicia — BEZ nazwy drukarni.
                      Od tej chwili najniższa cena jest też widoczna w panelu drukarń i aktualizowana co 30 min.
+  1b. NOWA OFERTA  — gdy drukarnia złoży lub zmieni ofertę, dostajesz maila (raz na każdą zmianę, zbiorczo co 30 min).
   2b. PRZYPOMNIENIE — na 6 h przed końcem drukarnie, które NIE złożyły jeszcze oferty, dostają przypomnienie.
   3. ZAMKNIĘCIE    — po końcu: status „zakonczone”, ranking ofert i mail do Ciebie: najniższa oferta + link
                      „ustal marżę i wygeneruj PDF dla klienta”.
@@ -27,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from email.utils import make_msgid
 
-GODZINY_KOMUNIKATU = float(os.environ.get("GODZINY_KOMUNIKATU", 12))
+GODZINY_KOMUNIKATU = float(os.environ.get("GODZINY_KOMUNIKATU", 2))
 GODZINY_PRZYPOMNIENIA = float(os.environ.get("GODZINY_PRZYPOMNIENIA", 6))
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "bz@ibprojekt.eu")
 PANEL_URL = os.environ.get("PANEL_URL", "https://108bart108.github.io/panel-wycen/").rstrip("/") + "/"
@@ -162,8 +163,38 @@ def mail_zaproszenie(z, zid, drukarnia):
             f"Oferty przyjmuję do: <strong>{fmt(koniec)}</strong>.</p>"
             f"<div style=\"white-space:pre-wrap;border:1px solid #ccc;padding:10px 12px;background:#fafafa\">{e(z.get('specyfikacja', ''))}</div>"
             f"<p style=\"margin-top:16px\"><a href=\"{PANEL_URL}#/z/{zid}\" style=\"background:#111;color:#fff;padding:10px 18px;text-decoration:none\">Złóż ofertę w panelu</a></p>"
-            f"<p style=\"font-size:14px;color:#555\">Ofertę można zmieniać do końca licytacji. Na {int(GODZINY_KOMUNIKATU)} h przed końcem drukarnie, "
+            f"<p style=\"font-size:14px;color:#555\">Ofertę można zmieniać do końca licytacji i dołączyć do niej plik (PDF). Na {int(GODZINY_KOMUNIKATU)} h przed końcem drukarnie, "
             f"które złożyły ofertę, otrzymają informację o aktualnie najniższej cenie (bez nazw drukarń).</p>")
+
+
+def najnizsze_naklady(moja, najn):
+    """Nakłady, w których ta oferta jest obecnie najniższa."""
+    wynik = []
+    for n, cena_min in najn.items():
+        p = next((p for p in moja.get("pozycje", []) if str(int(p.get("naklad", 0))) == n and float(p.get("cena") or 0) > 0), None)
+        if p is not None and razem(p) <= cena_min + 0.001:
+            wynik.append((n, razem(p)))
+    return wynik
+
+
+def mail_rabat(z, zid, moja, moje_najnizsze, najn, godz_do_konca):
+    """Pytanie o rabat — bez informacji, że oferta jest najniższa."""
+    czas = f"około {int(round(godz_do_konca))} h" if godz_do_konca >= 1.5 else "niecałą godzinę"
+    wiersze = "".join(f"<li>{e(n)} egz. — {zl(c)} netto z transportem</li>" for n, c in moje_najnizsze)
+    pozostale = [(n, c) for n, c in najn.items() if n not in {x for x, _ in moje_najnizsze}
+                 and any(str(int(p.get("naklad", 0))) == n and float(p.get("cena") or 0) > 0 for p in moja.get("pozycje", []))]
+    dodatek = ""
+    if pozostale:
+        dodatek = ("<p>Dla pozostałych nakładów obecnie najniższa cena netto z transportem to: "
+                   + "; ".join(f"{e(n)} egz. — <strong>{zl(c)}</strong>" for n, c in pozostale) + ".</p>")
+    return (f"Pytanie o rabat — {z['tytul']}",
+            f"<p>Dzień dobry,</p><p>dziękuję za ofertę na <strong>{e(z['tytul'])}</strong>. "
+            f"Do końca licytacji ({fmt(z['koniec'])}) zostało {czas}.</p>"
+            f"<p>Państwa oferta:</p><ul>{wiersze}</ul>"
+            f"<p><strong>Czy jest możliwy jakiś rabat?</strong> Jeśli tak, wystarczy zmienić cenę w panelu do końca licytacji "
+            f"(można też dołączyć plik z ofertą) albo odpowiedzieć na tego maila.</p>{dodatek}"
+            f"<p><a href=\"{PANEL_URL}#/z/{zid}\" style=\"background:#111;color:#fff;padding:10px 18px;text-decoration:none\">Zmień ofertę</a></p>"
+            f"<p style=\"font-size:14px;color:#555\">Jeśli rabat nie jest możliwy — nic nie trzeba robić, oferta pozostaje ważna.</p>")
 
 
 def mail_komunikat(z, zid, moja, najn, godz_do_konca):
@@ -172,8 +203,6 @@ def mail_komunikat(z, zid, moja, najn, godz_do_konca):
         moja_p = next((p for p in moja.get("pozycje", []) if str(int(p.get("naklad", 0))) == n and float(p.get("cena") or 0) > 0), None)
         if moja_p is None:
             stan = "<span style=\"color:#777\">nie wyceniono</span>"
-        elif razem(moja_p) <= cena_min + 0.001:
-            stan = "<strong style=\"color:#1d6b35\">Twoja oferta jest obecnie najniższa</strong>"
         else:
             stan = f"Twoja: {zl(razem(moja_p))}"
         wiersze += f"<tr><td style=\"padding:6px 10px;border-bottom:1px solid #ddd\">{e(n)} egz.</td><td style=\"padding:6px 10px;border-bottom:1px solid #ddd;text-align:right\"><strong>{zl(cena_min)}</strong></td><td style=\"padding:6px 10px;border-bottom:1px solid #ddd\">{stan}</td></tr>"
@@ -185,6 +214,25 @@ def mail_komunikat(z, zid, moja, najn, godz_do_konca):
             f"<p>Jeśli możecie Państwo zaproponować lepsze warunki, ofertę można zmienić w panelu do końca licytacji:</p>"
             f"<p><a href=\"{PANEL_URL}#/z/{zid}\" style=\"background:#111;color:#fff;padding:10px 18px;text-decoration:none\">Zmień ofertę</a></p>"
             f"<p style=\"font-size:14px;color:#555\">Nie podajemy nazw innych drukarń ani szczegółów ich ofert.</p>")
+
+
+def mail_nowe_oferty(z, zid, zmienione, najn):
+    """zmienione: [(email, oferta, czy_nowa)]"""
+    bloki = ""
+    for em, o, nowa in zmienione:
+        poz = "".join(
+            f"<li>{e(p.get('naklad'))} egz. — <strong>{zl(razem(p))}</strong> netto z transportem, {e(p.get('termin'))} dni rob."
+            + (f", grzbiet {e(p.get('grzbiet'))} mm" if p.get("grzbiet") else "")
+            + (" <span style=\"color:#1d6b35\">(obecnie najniższa)</span>" if najn.get(str(int(p.get('naklad', 0)))) is not None
+               and razem(p) <= najn[str(int(p.get('naklad', 0)))] + 0.001 else "") + "</li>"
+            for p in o.get("pozycje", []) if float(p.get("cena") or 0) > 0)
+        bloki += (f"<p style=\"margin:14px 0 4px\"><strong>{e(o.get('drukarnia') or em)}</strong> — {'nowa oferta' if nowa else 'zmiana oferty'}"
+                  + (f" · plik: {e(o['plik'].get('nazwa'))}" if o.get("plik") else "") + f"</p><ul style=\"margin-top:0\">{poz}</ul>"
+                  + (f"<p style=\"font-size:14px;color:#555;margin-top:-6px\">Uwagi: {e(o.get('uwagi'))}</p>" if o.get("uwagi") else ""))
+    nazwy = ", ".join(o.get("drukarnia") or em for em, o, _ in zmienione)
+    return (f"{'Nowa oferta' if len(zmienione) == 1 else 'Nowe oferty'}: {z['tytul']} — {nazwy}",
+            f"<p>Zapytanie <strong>{e(z['tytul'])}</strong> (koniec {fmt(z['koniec'])}):</p>{bloki}"
+            f"<p style=\"margin-top:16px\"><a href=\"{PANEL_URL}#/z/{zid}\" style=\"background:#111;color:#fff;padding:10px 18px;text-decoration:none\">Zobacz wszystkie oferty</a></p>")
 
 
 def mail_przypomnienie(z, zid, drukarnia, godz_do_konca):
@@ -246,6 +294,22 @@ def przetworz(baza, poczta, teraz=None, sucho=False):
         if len(oferty) != z.get("liczbaOfert"):
             zmiany["liczbaOfert"] = len(oferty)
 
+        # 1b. powiadomienie dla Ciebie o nowych / zmienionych ofertach
+        znane = dict(z.get("ofertyZgloszone") or {})
+        zmienione = []
+        for em, o in oferty:
+            zm = o.get("zmieniono")
+            if not zm:
+                continue
+            klucz = zm.isoformat() if hasattr(zm, "isoformat") else str(zm)
+            if znane.get(em) != klucz:
+                zmienione.append((em, o, em not in znane))
+                znane[em] = klucz
+        if zmienione:
+            temat, tresc = mail_nowe_oferty(z, zid, zmienione, najnizsze(z, oferty))
+            if poczta.wyslij(ADMIN_EMAIL, temat, tresc):
+                zmiany["ofertyZgloszone"] = znane
+
         # 2. komunikat „cena do pobicia”
         najn = najnizsze(z, oferty)
         do_konca_h = (koniec - teraz).total_seconds() / 3600
@@ -253,11 +317,15 @@ def przetworz(baza, poczta, teraz=None, sucho=False):
         if teraz < koniec and (czas_na_komunikat or z.get("wyslijKomunikatTeraz")):
             if najn:
                 for em, o in oferty:
-                    temat, tresc = mail_komunikat(z, zid, o, najn, do_konca_h)
+                    moje = najnizsze_naklady(o, najn)
+                    if moje:     # drukarnia z najniższą ceną → tylko pytanie o rabat (bez informacji, że jest najniższa)
+                        temat, tresc = mail_rabat(z, zid, o, moje, najn, do_konca_h)
+                    else:        # pozostałe → cena do pobicia (bez nazw drukarń)
+                        temat, tresc = mail_komunikat(z, zid, o, najn, do_konca_h)
                     poczta.wyslij(em, temat, tresc)
             zmiany.update({"najnizsze": najn, "wyslijKomunikatTeraz": False, "komunikatData": teraz})
             if czas_na_komunikat:
-                zmiany["komunikatWyslany"] = True   # ręczny komunikat nie blokuje automatycznego 12 h przed końcem
+                zmiany["komunikatWyslany"] = True   # ręczny komunikat nie blokuje automatycznego 2 h przed końcem
         elif (z.get("komunikatWyslany") or z.get("najnizsze")) and najn != z.get("najnizsze") and teraz < koniec:
             zmiany["najnizsze"] = najn          # cicha aktualizacja w panelu drukarń
 
