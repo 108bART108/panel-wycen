@@ -255,6 +255,8 @@ async function widokNowe(id = null) {
         <label>Tytuł roboczy (widzą go drukarnie — bez nazwy klienta!)<input name="tytul" required value="${esc(z.tytul)}" placeholder="np. Książka 170×240, 256 str., oprawa miękka"></label>
         <label>Nakłady (oddziel przecinkiem)<input name="naklady" required value="${esc((z.naklady || []).join(", "))}" placeholder="500, 1000, 2000"></label>
         <label>Link do plików / makiety (opcjonalnie)<input name="plikiLink" value="${esc(z.plikiLink || "")}" placeholder="https://…"></label>
+        <label>Termin przekazania plików do drukarni (opcjonalnie)<input name="terminPlikow" type="date" value="${esc(z.terminPlikow || "")}"></label>
+        <label>Termin doręczenia do klienta (opcjonalnie)<input name="terminDostawy" type="date" value="${esc(z.terminDostawy || "")}"></label>
         <label>Koniec licytacji<input name="koniec" type="datetime-local" required value="${lokal(koniecDomyslny)}"></label>
       </div>
       <div class="row" style="margin-top:8px"><span class="small muted">Szybko:</span>
@@ -290,23 +292,42 @@ async function widokNowe(id = null) {
     if (!zaproszeni.length) return info("Zaznacz co najmniej jedną drukarnię.");
     if (koniec < new Date()) return info("Koniec licytacji musi być w przyszłości.");
     const dane = { tytul: f.tytul.value.trim(), naklady, plikiLink: f.plikiLink.value.trim(), specyfikacja: f.specyfikacja.value.trim(),
+      terminPlikow: f.terminPlikow.value || "", terminDostawy: f.terminDostawy.value || "",
       koniec: Timestamp.fromDate(koniec), zaproszeni, status: "otwarte" };
     const prywatne = { klient: f.klient.value.trim(), osoba: f.osoba.value.trim(), email: f.emailKlienta.value.trim(), notatka: f.notatka.value.trim() };
     try {
       let zid = id;
       if (id) {
         const stare = data(z.koniec);
-        if (stare && Math.abs(stare - koniec) > 60000) { dane.komunikatWyslany = false; dane.przypomnienieWyslane = false; }   // przedłużenie = nowy komunikat 12 h przed nowym końcem
+        if (stare && Math.abs(stare - koniec) > 60000) { dane.komunikatWyslany = false; dane.przypomnienieWyslane = false; }   // przedłużenie = nowy komunikat przed nowym końcem
+        const zm = opisZmian(z, dane);
+        if (zm.length && z.status === "otwarte") { dane.zmianyDoWyslania = zm; dane.zmianaData = serverTimestamp(); }
         await updateDoc(doc(db, "zapytania", id), dane);
+        if (zm.length) info("Zapisano. Drukarnie dostaną mail o zmianach (do 30 min): " + zm.join("; "), 6000);
       } else {
         const r = await addDoc(collection(db, "zapytania"), { ...dane, utworzono: serverTimestamp(), powiadomieni: [], komunikatWyslany: false, liczbaOfert: 0 });
         zid = r.id;
       }
       await setDoc(doc(db, "prywatne", zid), prywatne, { merge: true });
-      info("Zapisano."); location.hash = "#/z/" + zid;
+      if (!id) info("Zapisano."); location.hash = "#/z/" + zid;
     } catch (err) { info("Błąd zapisu: " + err.code); }
   };
 }
+
+// opis zmian w zapytaniu — trafia do maila dla drukarń
+function opisZmian(stare, nowe) {
+  const zm = [], dzien = (v) => (v ? new Date(v + "T00:00").toLocaleDateString("pl-PL") : "brak");
+  if ((stare.tytul || "") !== nowe.tytul) zm.push(`tytuł: „${nowe.tytul}”`);
+  if ((stare.naklady || []).join(",") !== nowe.naklady.join(",")) zm.push(`nakłady: ${nowe.naklady.join(" / ")} egz.`);
+  if ((stare.specyfikacja || "").trim() !== nowe.specyfikacja) zm.push("zmieniona specyfikacja");
+  if ((stare.plikiLink || "") !== nowe.plikiLink) zm.push(nowe.plikiLink ? "nowy link do plików" : "usunięto link do plików");
+  if ((stare.terminPlikow || "") !== nowe.terminPlikow) zm.push(`termin przekazania plików: ${dzien(nowe.terminPlikow)}`);
+  if ((stare.terminDostawy || "") !== nowe.terminDostawy) zm.push(`termin doręczenia do klienta: ${dzien(nowe.terminDostawy)}`);
+  const ks = data(stare.koniec), kn = data(nowe.koniec);
+  if (ks && kn && Math.abs(ks - kn) > 60000) zm.push(`koniec licytacji: ${fmtData(nowe.koniec)}`);
+  return zm;
+}
+const terminyHtml = (z) => (z.terminPlikow || z.terminDostawy) ? `<div class="grid small" style="margin:8px 0">${z.terminPlikow ? `<div><span class="muted">Przekazanie plików do drukarni</span><br><strong>${new Date(z.terminPlikow + "T00:00").toLocaleDateString("pl-PL")}</strong></div>` : ""}${z.terminDostawy ? `<div><span class="muted">Doręczenie do klienta</span><br><strong>${new Date(z.terminDostawy + "T00:00").toLocaleDateString("pl-PL")}</strong></div>` : ""}</div>` : "";
 
 // =====================================================================================
 //  ADMIN — szczegóły zapytania z ofertami na żywo
@@ -367,7 +388,7 @@ function widokZapytanieAdmin(id) {
       ${(z.zaproszeni || []).map((e) => `<tr><td>${esc(drukarnie[e]?.nazwa || e)}<br><span class="small muted">${esc(e)}</span></td>
         <td>${(z.powiadomieni || []).includes(e) ? '<span class="ok">wysłany</span>' : '<span class="muted">czeka na bota</span>'}</td>
         <td>${zlozyli.has(e) ? '<span class="ok">złożona</span>' : '<span class="muted">brak</span>'}</td></tr>`).join("")}</table>
-      <h2>Specyfikacja</h2><div class="box pre">${esc(z.specyfikacja)}</div>
+      <h2>Specyfikacja</h2>${terminyHtml(z)}<div class="box pre">${esc(z.specyfikacja)}</div>
       ${z.plikiLink ? `<p>Pliki: <a href="${esc(z.plikiLink)}" target="_blank" rel="noopener">${esc(z.plikiLink)}</a></p>` : ""}
       <h2>Klient</h2><div class="box">${pryw.klient ? `<strong>${esc(pryw.klient)}</strong> ${esc(pryw.osoba || "")} ${pryw.email ? "· " + esc(pryw.email) : ""}<br><span class="small muted">${esc(pryw.notatka || "")}</span>` : '<span class="muted">nie podano — uzupełnisz przy ofercie</span>'}
         ${(pryw.oferty || []).length ? `<p class="small">Wygenerowane oferty: ${pryw.oferty.map((o) => `${esc(o.numer)} (${fmtData(o.data)})`).join(", ")}</p>` : ""}</div>`;
@@ -389,7 +410,8 @@ function widokZapytanieAdmin(id) {
       if (!Object.keys(n).length) return info("Nie ma jeszcze żadnych ofert.");
       if (confirm("Drukarnie, które złożyły oferty, dostaną mailem najniższą cenę (bez nazwy drukarni), a drukarnia z najniższą ceną — pytanie o rabat. Wysłać?")) zmien({ najnizsze: n, wyslijKomunikatTeraz: true }, "Komunikat wyśle bot w ciągu 30 min. Najniższa cena już jest widoczna w panelu drukarń.");
     });
-    document.getElementById("plus24")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(data(z.koniec).getTime() + 24 * 3600e3)), komunikatWyslany: false, przypomnienieWyslane: false }, "Przedłużono o 24 h."));
+    document.getElementById("plus24")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(data(z.koniec).getTime() + 24 * 3600e3)), komunikatWyslany: false, przypomnienieWyslane: false,
+      zmianyDoWyslania: [`koniec licytacji przedłużony do ${fmtData(new Date(data(z.koniec).getTime() + 24 * 3600e3))}`], zmianaData: serverTimestamp() }, "Przedłużono o 24 h — drukarnie dostaną informację."));
     document.getElementById("wznow")?.addEventListener("click", () => zmien({ koniec: Timestamp.fromDate(new Date(Math.max(Date.now(), data(z.koniec).getTime()) + 24 * 3600e3)), status: "otwarte", komunikatWyslany: false, przypomnienieWyslane: false, podsumowanieWyslane: false }, "Wznowiono na 24 h."));
     document.getElementById("zakoncz")?.addEventListener("click", () => { if (confirm("Zakończyć licytację teraz? Drukarnie nie będą mogły już zmieniać ofert.")) zmien({ koniec: Timestamp.fromDate(new Date()) }, "Zakończono — podsumowanie wyśle bot."); });
     document.getElementById("anuluj")?.addEventListener("click", () => { if (confirm("Anulować zapytanie?")) zmien({ status: "anulowane" }, "Anulowano."); });
@@ -705,7 +727,7 @@ function widokZapytanieDrukarnia(id) {
         if (reszta.length) h += `<p class="warn" style="margin-bottom:0"><strong>Najniższa cena do pobicia</strong> (netto z transportem): ${reszta.map(([n, v]) => `${esc(n)} egz. — <strong>${zl(v)}</strong>${mojaC(n) != null ? ` <span class="small">(Twoja: ${zl(mojaC(n))})</span>` : ""}`).join(" · ")}</p>`;
         return h; })() : ""}
       </div>
-      <h2>Specyfikacja</h2><div class="box pre">${esc(z.specyfikacja)}</div>
+      <h2>Specyfikacja</h2>${terminyHtml(z)}<div class="box pre">${esc(z.specyfikacja)}</div>
       ${z.plikiLink ? `<p>Pliki / makieta: <a href="${esc(z.plikiLink)}" target="_blank" rel="noopener">${esc(z.plikiLink)}</a></p>` : ""}
       <h2>${otwarte ? (moja ? "Zmień ofertę" : "Złóż ofertę") : "Twoja oferta"}</h2>
       <form id="f"><div class="scroll"><table><tr><th>Nakład</th><th>Cena netto druku (zł)</th><th>Transport netto (zł)</th><th>Termin (dni rob.)</th><th>Grzbiet (mm) <span class="small muted">— opcjonalnie</span></th></tr>

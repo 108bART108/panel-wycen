@@ -2,9 +2,11 @@
 
 **Jak to działa**
 
-1. Tworzysz w panelu zapytanie: tytuł roboczy (bez nazwy klienta), specyfikację, nakłady, link do plików, **koniec licytacji (timer)**, zaznaczasz drukarnie. Dane klienta wpisujesz w osobnej sekcji — drukarnie ich nie widzą.
+1. Tworzysz w panelu zapytanie: tytuł roboczy (bez nazwy klienta), specyfikację, nakłady, link do plików, opcjonalnie termin przekazania plików i termin doręczenia do klienta, **koniec licytacji (timer)**, zaznaczasz drukarnie. Dane klienta wpisujesz w osobnej sekcji — drukarnie ich nie widzą.
 2. **Bot** (GitHub Actions, co 30 min) wysyła zaproszenia mailem. Drukarnie logują się i składają oferty (cena, transport, termin; grzbiet opcjonalnie; link do wykrojnika; **plik z ofertą do 700 KB** jako dodatek). Do końca mogą je zmieniać.
 3. **2 h przed końcem** bot wysyła drukarniom, które złożyły ofertę, **najniższą cenę do pobicia** (netto z transportem, **bez nazwy drukarni**). Drukarnia, która ma najniższą cenę, dostaje zamiast tego tylko **pytanie, czy możliwy jest jakiś rabat** — bez informacji, że jest najtańsza (w jej panelu też nie widać ceny do pobicia). Możesz to wysłać wcześniej przyciskiem „Wyślij teraz najniższą cenę”.
+- Gdy **zmienisz otwarte zapytanie** (specyfikacja, nakłady, link, terminy, koniec, przedłużenie +24 h), zaproszone drukarnie dostają maila z listą zmian.
+- Za każdym razem, gdy drukarnia **złoży lub zmieni ofertę**, dostajesz maila z jej cenami (zbiorczo, co 30 min).
 4. **6 h przed końcem** drukarnie, które **jeszcze nie złożyły oferty**, dostają przypomnienie z linkiem do panelu.
 5. **Po końcu** bot zamyka licytację i wysyła Ci mail: ranking ofert + przycisk **„Ile doliczyć marży? → przygotuj ofertę PDF”**.
 6. W panelu: najniższa oferta jest wybrana dla każdego nakładu (możesz zmienić), wpisujesz **marżę** (% albo zł), VAT, zapas terminu → podgląd z Twoim zyskiem → **„Generuj ofertę PDF”** (numer OF/rok/miesiąc/nr, bez nazw drukarń). Opcjonalnie otwiera się gotowy mail do klienta.
